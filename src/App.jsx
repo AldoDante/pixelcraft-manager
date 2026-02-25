@@ -175,7 +175,7 @@ function App() {
               editandoId ? 'bg-warning text-dark' : 'bg-dark' 
             }`}>
               {calculoFinalizado ? '✅ PROYECTO GUARDADO' : 
-               editandoId ? '✏️ EDITANDO PROYECTO' : 'Nueva Impresión'}
+               editandoId ? ' EDITANDO PROYECTO' : 'Nueva Impresión'}
             </div>
 
             <div className="card-body">
