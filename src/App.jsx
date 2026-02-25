@@ -232,12 +232,12 @@ function App() {
                 <div className="d-flex gap-2">
                   {calculoFinalizado ? (
                     <button type="button" className="btn btn-info w-100 fw-bold text-dark animate__animated animate__pulse animate__infinite" onClick={iniciarNuevoCalculo}>
-                      ✨ NUEVO CÁLCULO (Limpiar)
+                       NUEVO CÁLCULO
                     </button>
                   ) : (
                     <>
                       <button type="submit" className={`btn w-100 fw-bold ${editandoId ? 'btn-warning text-dark' : 'btn-primary'}`}>
-                        {editandoId ? 'ACTUALIZAR PROYECTO' : 'GUARDAR EN LA NUBE'}
+                        {editandoId ? 'ACTUALIZAR PROYECTO' : 'CALCULAR'}
                       </button>
                       
                       {editandoId && (
