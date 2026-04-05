@@ -5,9 +5,12 @@ import { db } from './firebase';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc } from 'firebase/firestore';
 
 function App() {
+  // 1. AGREGAMOS LAS VARIABLES DE DESGASTE AL ESTADO Y LOCALSTORAGE
   const [config, setConfig] = useState(() => ({
     kwh: localStorage.getItem('pixelcraft_kWh') || 120,
-    margen: localStorage.getItem('pixelcraft_margen') || 50
+    margen: localStorage.getItem('pixelcraft_margen') || 50,
+    valorMaquina: localStorage.getItem('pixelcraft_valorMaquina') || 1200000,
+    mantenimientoHora: localStorage.getItem('pixelcraft_mantenimiento') || 500
   }));
 
   const [proyectos, setProyectos] = useState([]);
@@ -20,9 +23,12 @@ function App() {
     tiempoHoras: "", tiempoMinutos: "", usaSecado: false
   });
 
+  // 2. GUARDAMOS LOS NUEVOS VALORES EN LOCALSTORAGE
   useEffect(() => {
     localStorage.setItem('pixelcraft_kWh', config.kwh);
     localStorage.setItem('pixelcraft_margen', config.margen);
+    localStorage.setItem('pixelcraft_valorMaquina', config.valorMaquina);
+    localStorage.setItem('pixelcraft_mantenimiento', config.mantenimientoHora);
   }, [config]);
 
   useEffect(() => {
@@ -67,7 +73,6 @@ function App() {
     setUltimoResultado(null);
     setEditandoId(null);
     
-    // Mantenemos precio del filamento, borramos el resto
     setForm(prev => ({
       ...prev,
       nombreProyecto: "",
@@ -80,20 +85,21 @@ function App() {
   const handleCalcular = async (e) => {
     e.preventDefault();
 
-    // --- VALIDACIÓN MANUAL (Para evitar el cartel del navegador) ---
     if (!form.nombreProyecto || !form.pesoTotal || !form.tiempoHoras) {
-      // Si falta algo, simplemente no hacemos nada (o podrías poner un alert suave)
       return; 
     }
 
     const tiempoDecimal = (parseFloat(form.tiempoHoras) || 0) + ((parseFloat(form.tiempoMinutos) || 0) / 60);
 
+    // 3. ENVIAMOS LAS NUEVAS VARIABLES A LA FÓRMULA
     const resultadoCalculo = calcularPresupuestoFinal({
       ...form,
       tiempoTotal: tiempoDecimal,
       costoKWh: config.kwh,
       margenGanancia: config.margen,
-      precioFilamento: form.precioFilamento
+      precioFilamento: form.precioFilamento,
+      valorMaquina: config.valorMaquina,
+      mantenimientoHora: config.mantenimientoHora
     });
     
     const datosAGuardar = {
@@ -158,6 +164,19 @@ function App() {
                 <input type="number" step="0.01" className="form-control form-control-sm fw-bold" 
                   value={config.kwh} onChange={e => setConfig({...config, kwh: e.target.value})} />
               </div>
+              
+              {/* 4. AGREGAMOS LOS INPUTS EN LA UI */}
+              <div className="mb-2">
+                <label className="small fw-bold" title="Valor actual de la Kobra S1">Máquina ($)</label>
+                <input type="number" className="form-control form-control-sm fw-bold" 
+                  value={config.valorMaquina} onChange={e => setConfig({...config, valorMaquina: e.target.value})} />
+              </div>
+              <div className="mb-2">
+                <label className="small fw-bold" title="Fondo para boquillas y correas">Desgaste Piezas Descartables ($/h)</label>
+                <input type="number" className="form-control form-control-sm fw-bold" 
+                  value={config.mantenimientoHora} onChange={e => setConfig({...config, mantenimientoHora: e.target.value})} />
+              </div>
+
               <div className="mb-2">
                 <label className="small fw-bold">Margen %</label>
                 <input type="number" className="form-control form-control-sm fw-bold" 
@@ -175,11 +194,10 @@ function App() {
               editandoId ? 'bg-warning text-dark' : 'bg-dark' 
             }`}>
               {calculoFinalizado ? '✅ PROYECTO GUARDADO' : 
-               editandoId ? ' EDITANDO PROYECTO' : 'Nueva Impresión'}
+               editandoId ? '✏️ EDITANDO PROYECTO' : '🖨️ Nueva Impresión'}
             </div>
 
             <div className="card-body">
-              {/* AGREGAMOS noValidate PARA QUITAR ALERTAS DEL NAVEGADOR */}
               <form onSubmit={handleCalcular} noValidate>
                 <div className="mb-2">
                   <input type="text" className="form-control" placeholder="Nombre del Proyecto" required
@@ -226,7 +244,7 @@ function App() {
                     checked={form.usaSecado} onChange={e => setForm({...form, usaSecado: e.target.checked})} 
                     disabled={calculoFinalizado}
                   />
-                  <label className="form-check-label small" htmlFor="chkSecado">Secado (+65W)</label>
+                  <label className="form-check-label small" htmlFor="chkSecado">Secado (+200W ACE Pro)</label>
                 </div>
 
                 <div className="d-flex gap-2">
@@ -260,7 +278,7 @@ function App() {
                 <div className="row g-2 justify-content-center">
                   <div className={parseFloat(ultimoResultado.margenUsado) > 0 ? "col-6" : "col-12"}>
                     <div className="p-2 bg-light border rounded">
-                      <small className="text-muted fw-bold d-block">COSTO</small>
+                      <small className="text-muted fw-bold d-block">COSTO REAL</small>
                       <span className="h4 text-secondary">{formatoMoneda(ultimoResultado.costoProduccion)}</span>
                     </div>
                   </div>
