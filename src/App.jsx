@@ -13,14 +13,15 @@ function App() {
   }));
 
   const [proyectos, setProyectos] = useState([]);
-  const [ventas, setVentas] = useState([]); // <-- NUEVO: Estado para las ventas
+  const [ventas, setVentas] = useState([]);
   const [ultimoResultado, setUltimoResultado] = useState(null);
   const [editandoId, setEditandoId] = useState(null);
   const [calculoFinalizado, setCalculoFinalizado] = useState(false);
 
+  // <-- AGREGAMOS "descuento" AL ESTADO INICIAL
   const [form, setForm] = useState({
     nombreProyecto: "", material: "PLA/PETG", pesoTotal: "", precioFilamento: "", 
-    tiempoHoras: "", tiempoMinutos: "", usaSecado: false
+    tiempoHoras: "", tiempoMinutos: "", usaSecado: false, descuento: ""
   });
 
   useEffect(() => {
@@ -30,24 +31,18 @@ function App() {
     localStorage.setItem('pixelcraft_mantenimiento', config.mantenimientoHora);
   }, [config]);
 
-  // Firebase: Escuchar Cotizaciones y Ventas
   useEffect(() => {
-    // Escucha Cotizaciones
     const qProyectos = query(collection(db, "calculos"), orderBy("id", "desc"));
     const unsubProyectos = onSnapshot(qProyectos, (snapshot) => {
       setProyectos(snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() })));
     });
 
-    // <-- NUEVO: Escucha Ventas
     const qVentas = query(collection(db, "ventas"), orderBy("id", "desc"));
     const unsubVentas = onSnapshot(qVentas, (snapshot) => {
       setVentas(snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() })));
     });
 
-    return () => {
-      unsubProyectos();
-      unsubVentas();
-    };
+    return () => { unsubProyectos(); unsubVentas(); };
   }, []);
 
   const cargarParaEditar = (proyecto) => {
@@ -62,7 +57,8 @@ function App() {
       precioFilamento: proyecto.precioFilamento || "", 
       tiempoHoras: Math.floor(horasTotales), 
       tiempoMinutos: Math.round((horasTotales % 1) * 60), 
-      usaSecado: proyecto.secado || false
+      usaSecado: proyecto.secado || false,
+      descuento: proyecto.descuento || "" // <-- CARGAMOS EL DESCUENTO PREVIO
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -70,7 +66,7 @@ function App() {
   const cancelarEdicion = () => {
     setEditandoId(null);
     setCalculoFinalizado(false);
-    setForm({ nombreProyecto: "", material: "PLA/PETG", pesoTotal: "", precioFilamento: "", tiempoHoras: "", tiempoMinutos: "", usaSecado: false });
+    setForm({ nombreProyecto: "", material: "PLA/PETG", pesoTotal: "", precioFilamento: "", tiempoHoras: "", tiempoMinutos: "", usaSecado: false, descuento: "" });
     setUltimoResultado(null);
   };
 
@@ -78,13 +74,12 @@ function App() {
     setCalculoFinalizado(false);
     setUltimoResultado(null);
     setEditandoId(null);
-    setForm(prev => ({ ...prev, nombreProyecto: "", pesoTotal: "", tiempoHoras: "", tiempoMinutos: "" }));
+    setForm(prev => ({ ...prev, nombreProyecto: "", pesoTotal: "", tiempoHoras: "", tiempoMinutos: "", descuento: "" }));
   };
 
-const handleCalcular = async (e) => {
+  const handleCalcular = async (e) => {
     e.preventDefault();
 
-    // 1. BUG SOLUCIONADO: Ahora permite que las horas sean "0" (evalúa explícitamente si está vacío)
     if (!form.nombreProyecto || form.pesoTotal === "" || form.tiempoHoras === "") {
       return; 
     }
@@ -101,7 +96,6 @@ const handleCalcular = async (e) => {
       mantenimientoHora: config.mantenimientoHora
     });
     
-    // 2. Objeto limpio EXCLUSIVO para Firestore (sin arrastrar IDs duplicados)
     const datosAGuardar = {
       nombre: form.nombreProyecto,
       pesoTotal: form.pesoTotal,
@@ -110,46 +104,32 @@ const handleCalcular = async (e) => {
       tiempoTotal: tiempoDecimal,
       material: form.material,
       secado: form.usaSecado,
-      // Datos calculados:
+      descuento: form.descuento, // <-- GUARDAMOS EL DESCUENTO EN FIREBASE
       costoProduccion: resultadoCalculo.costoProduccion,
       precioVenta: resultadoCalculo.precioVenta,
+      precioOriginal: resultadoCalculo.precioOriginal,
+      montoDescuento: resultadoCalculo.montoDescuento,
       margenUsado: config.margen,
       detalle: resultadoCalculo.detalle
     };
 
     try {
       if (editandoId) {
-        // ACTUALIZACIÓN DE PROYECTO EXISTENTE
         await updateDoc(doc(db, "calculos", editandoId), datosAGuardar);
-        
         setEditandoId(null);
-        setCalculoFinalizado(false); // Volvemos la UI al modo "Nueva Impresión"
-        
-        // Limpiamos el form (dejamos el material para agilizar tu próximo cálculo)
-        setForm({ 
-            nombreProyecto: "", 
-            material: form.material, 
-            pesoTotal: "", 
-            precioFilamento: form.precioFilamento, 
-            tiempoHoras: "", 
-            tiempoMinutos: "", 
-            usaSecado: false 
-        });
-
+        setCalculoFinalizado(false); 
+        setForm({ nombreProyecto: "", material: form.material, pesoTotal: "", precioFilamento: form.precioFilamento, tiempoHoras: "", tiempoMinutos: "", usaSecado: false, descuento: "" });
       } else {
-        // GUARDADO DE PROYECTO NUEVO
-        datosAGuardar.id = Date.now(); // Solo generamos este ID si es un proyecto nuevo
+        datosAGuardar.id = Date.now(); 
         await addDoc(collection(db, "calculos"), datosAGuardar);
         setCalculoFinalizado(true); 
       }
-      
       setUltimoResultado(datosAGuardar);
-
     } catch (error) {
       console.error("Error en Firebase:", error);
       alert("Error al guardar. Revisa tu conexión a internet.");
     }
-  }; //aqui termina handleCalcular
+  };
 
   const eliminarProyecto = async (idFirestore) => {
     if (confirm("¿Borrar este proyecto?")) {
@@ -165,7 +145,6 @@ const handleCalcular = async (e) => {
     }
   };
 
-  // <-- NUEVO: Funciones para Ventas
   const registrarVenta = async (proyecto) => {
     if (confirm(`💸 ¿Registrar "${proyecto.nombre}" como VENTA CONCRETADA por ${formatoMoneda(proyecto.precioVenta)}?`)) {
       try {
@@ -176,22 +155,15 @@ const handleCalcular = async (e) => {
           fechaVenta: Date.now(),
           id: Date.now()
         });
-        // Opcional: Podrías hacer un alert("Venta registrada!") o usar un toast
-      } catch (error) {
-        console.error("Error al registrar venta:", error);
-      }
+      } catch (error) { console.error("Error al registrar venta:", error); }
     }
   };
 
   const eliminarVenta = async (idFirestore) => {
-    if (confirm("¿Borrar este registro de venta?")) {
-      await deleteDoc(doc(db, "ventas", idFirestore));
-    }
+    if (confirm("¿Borrar este registro de venta?")) await deleteDoc(doc(db, "ventas", idFirestore));
   };
 
-  // <-- NUEVO: Cálculo del total del pozo de ventas
   const totalVentas = ventas.reduce((acc, venta) => acc + (parseFloat(venta.precioVenta) || 0), 0);
-
   const formatoMoneda = (valor) => (valor || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
   return (
@@ -199,6 +171,7 @@ const handleCalcular = async (e) => {
       <h1 className="text-center text-primary fw-bold mb-4">Pixelcraft 3D Cloud</h1>
 
       <div className="row g-3">
+        {/* PANEL AJUSTES LOCALES (Sin cambios) */}
         <div className="col-lg-2 col-md-3">
           <div className="card shadow-sm border-warning">
             <div className="card-header bg-warning text-dark fw-bold small text-center">AJUSTES LOCALES</div>
@@ -227,6 +200,7 @@ const handleCalcular = async (e) => {
           </div>
         </div>
 
+        {/* PANEL CALCULADORA */}
         <div className="col-lg-6 col-md-5">
           <div className={`card shadow border-0 mb-3 ${editandoId ? 'border-warning border-3' : ''}`}>
             <div className={`card-header fw-bold text-white ${calculoFinalizado ? 'bg-info text-dark' : editandoId ? 'bg-warning text-dark' : 'bg-dark'}`}>
@@ -265,10 +239,24 @@ const handleCalcular = async (e) => {
                       value={form.tiempoMinutos} onChange={e => setForm({...form, tiempoMinutos: e.target.value})} disabled={calculoFinalizado} />
                   </div>
                 </div>
-                <div className="form-check mb-3">
-                  <input className="form-check-input" type="checkbox" id="chkSecado" 
-                    checked={form.usaSecado} onChange={e => setForm({...form, usaSecado: e.target.checked})} disabled={calculoFinalizado} />
-                  <label className="form-check-label small" htmlFor="chkSecado">Secado (+200W ACE Pro)</label>
+                
+                {/* <-- NUEVO: FILA DE SECADO + DESCUENTO --> */}
+                <div className="row g-2 mb-3 align-items-center">
+                  <div className="col-6">
+                    <div className="form-check">
+                      <input className="form-check-input" type="checkbox" id="chkSecado" 
+                        checked={form.usaSecado} onChange={e => setForm({...form, usaSecado: e.target.checked})} disabled={calculoFinalizado} />
+                      <label className="form-check-label small" htmlFor="chkSecado">Secado (+200W ACE)</label>
+                    </div>
+                  </div>
+                  <div className="col-6">
+                    <div className="input-group input-group-sm">
+                      <span className="input-group-text bg-dark text-warning border-secondary">Descuento</span>
+                      <input type="number" className="form-control" placeholder="Ej: 10" 
+                        value={form.descuento} onChange={e => setForm({...form, descuento: e.target.value})} disabled={calculoFinalizado} />
+                      <span className="input-group-text bg-dark text-warning border-secondary">%</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="d-flex gap-2">
@@ -302,7 +290,6 @@ const handleCalcular = async (e) => {
                   </div>
                   {parseFloat(ultimoResultado.margenUsado) > 0 && (
                     <div className="col-6">
-                      {/* <-- NUEVO: Hacemos la caja de venta clickeable */}
                       <div 
                         className="p-2 bg-primary bg-opacity-10 border border-primary rounded"
                         style={{ cursor: 'pointer', transition: '0.2s' }}
@@ -312,18 +299,34 @@ const handleCalcular = async (e) => {
                         title="¡Click para registrar esta venta!"
                       >
                         <small className="text-primary fw-bold d-block">VENTA (Click para registrar)</small>
-                        <span className="h4 text-primary fw-bold">{formatoMoneda(ultimoResultado.precioVenta)}</span>
+                        {/* <-- NUEVO EFECTO VISUAL DE DESCUENTO TACHADO --> */}
+                        {ultimoResultado.montoDescuento > 0 ? (
+                          <>
+                            <span className="text-muted text-decoration-line-through d-block small">
+                              {formatoMoneda(ultimoResultado.precioOriginal)}
+                            </span>
+                            <span className="h4 text-success fw-bold">{formatoMoneda(ultimoResultado.precioVenta)}</span>
+                          </>
+                        ) : (
+                          <span className="h4 text-primary fw-bold">{formatoMoneda(ultimoResultado.precioVenta)}</span>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
+                {/* Aviso extra si hubo descuento */}
+                {ultimoResultado.montoDescuento > 0 && (
+                  <div className="mt-2 small text-warning fw-bold">
+                    ⚠️ Aplicaste un descuento de {formatoMoneda(ultimoResultado.montoDescuento)}
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
+        {/* PANELES LATERALES (Sin cambios mayores) */}
         <div className="col-lg-4 col-md-4">
-          {/* Historial de Cotizaciones original */}
           <ListaProyectos 
             proyectos={proyectos} 
             eliminarProyecto={eliminarProyecto}
@@ -331,7 +334,6 @@ const handleCalcular = async (e) => {
             cargarParaEditar={cargarParaEditar} 
           />
 
-          {/* <-- NUEVO: Panel de Historial de Ventas */}
           <div className="card bg-dark border-success mt-4 shadow">
             <div className="card-header bg-success text-white fw-bold d-flex justify-content-between align-items-center">
               <span>💰 HISTORIAL DE VENTAS ({ventas.length})</span>
@@ -349,9 +351,7 @@ const handleCalcular = async (e) => {
                       </div>
                       <div className="d-flex align-items-center gap-2">
                         <span className="text-success fw-bold">{formatoMoneda(v.precioVenta)}</span>
-                        <button className="btn btn-sm btn-outline-danger border-0" onClick={() => eliminarVenta(v.firestoreId)} title="Eliminar Venta">
-                          🗑️
-                        </button>
+                        <button className="btn btn-sm btn-outline-danger border-0" onClick={() => eliminarVenta(v.firestoreId)} title="Eliminar Venta">🗑️</button>
                       </div>
                     </li>
                   ))}
