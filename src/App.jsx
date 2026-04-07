@@ -81,9 +81,13 @@ function App() {
     setForm(prev => ({ ...prev, nombreProyecto: "", pesoTotal: "", tiempoHoras: "", tiempoMinutos: "" }));
   };
 
-  const handleCalcular = async (e) => {
+const handleCalcular = async (e) => {
     e.preventDefault();
-    if (!form.nombreProyecto || !form.pesoTotal || !form.tiempoHoras) return; 
+
+    // 1. BUG SOLUCIONADO: Ahora permite que las horas sean "0" (evalúa explícitamente si está vacío)
+    if (!form.nombreProyecto || form.pesoTotal === "" || form.tiempoHoras === "") {
+      return; 
+    }
 
     const tiempoDecimal = (parseFloat(form.tiempoHoras) || 0) + ((parseFloat(form.tiempoMinutos) || 0) / 60);
 
@@ -97,8 +101,8 @@ function App() {
       mantenimientoHora: config.mantenimientoHora
     });
     
+    // 2. Objeto limpio EXCLUSIVO para Firestore (sin arrastrar IDs duplicados)
     const datosAGuardar = {
-      ...resultadoCalculo,
       nombre: form.nombreProyecto,
       pesoTotal: form.pesoTotal,
       precioFilamento: form.precioFilamento,
@@ -106,23 +110,46 @@ function App() {
       tiempoTotal: tiempoDecimal,
       material: form.material,
       secado: form.usaSecado,
-      id: Date.now()
+      // Datos calculados:
+      costoProduccion: resultadoCalculo.costoProduccion,
+      precioVenta: resultadoCalculo.precioVenta,
+      margenUsado: config.margen,
+      detalle: resultadoCalculo.detalle
     };
 
     try {
       if (editandoId) {
+        // ACTUALIZACIÓN DE PROYECTO EXISTENTE
         await updateDoc(doc(db, "calculos", editandoId), datosAGuardar);
+        
         setEditandoId(null);
+        setCalculoFinalizado(false); // Volvemos la UI al modo "Nueva Impresión"
+        
+        // Limpiamos el form (dejamos el material para agilizar tu próximo cálculo)
+        setForm({ 
+            nombreProyecto: "", 
+            material: form.material, 
+            pesoTotal: "", 
+            precioFilamento: form.precioFilamento, 
+            tiempoHoras: "", 
+            tiempoMinutos: "", 
+            usaSecado: false 
+        });
+
       } else {
+        // GUARDADO DE PROYECTO NUEVO
+        datosAGuardar.id = Date.now(); // Solo generamos este ID si es un proyecto nuevo
         await addDoc(collection(db, "calculos"), datosAGuardar);
+        setCalculoFinalizado(true); 
       }
+      
       setUltimoResultado(datosAGuardar);
-      setCalculoFinalizado(true); 
+
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al guardar. Revisa tu conexión.");
+      console.error("Error en Firebase:", error);
+      alert("Error al guardar. Revisa tu conexión a internet.");
     }
-  };
+  }; //aqui termina handleCalcular
 
   const eliminarProyecto = async (idFirestore) => {
     if (confirm("¿Borrar este proyecto?")) {
