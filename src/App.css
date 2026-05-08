@@ -1,42 +1,232 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* Importar la fuente pixelada de Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Segoe+UI:wght@400;600;700&display=swap');
+
+/* Aislar los estilos del catálogo para no pisar Bootstrap */
+.catalogo-publico {
+  background-color: #0b0e14;
+  color: #e0e0e0;
+  min-height: 100vh;
+  font-family: 'Segoe UI', sans-serif;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.navbar-public {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 40px;
+  background-color: #151921;
+  border-bottom: 2px solid #00d4ff;
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.pixel-logo {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 24pt;
+  color: #00d4ff;
+  text-shadow: 0 0 10px #00d4ff;
+  line-height: 1;
 }
 
-.card {
-  padding: 2em;
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10pt;
+  color: white;
+  line-height: 1.2;
 }
 
-.read-the-docs {
+.nav-links a {
+  color: #e0e0e0;
+  text-decoration: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 9pt;
+  margin: 0 15px;
+  transition: color 0.3s;
+}
+
+.nav-links a:hover {
+  color: #00d4ff;
+}
+
+.btn-login {
+  background: transparent;
+  border: 1px solid #00d4ff;
+  color: #00d4ff;
+  padding: 8px 15px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7pt;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.btn-login:hover {
+  background: #00d4ff;
+  color: #0b0e14;
+  box-shadow: 0 0 10px #00d4ff;
+}
+
+/* HERO SECTION */
+.hero-section {
+  padding: 60px 40px;
+  background: linear-gradient(135deg, #1a1f29 0%, #0b0e14 100%);
+  border-bottom: 1px solid #2a2f3a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 30px;
+}
+
+.hero-content {
+  flex: 1;
+  min-width: 300px;
+}
+
+.hero-content h1 {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(16pt, 3vw, 24pt);
+  color: white;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.hero-content h1 span {
+  color: #00d4ff;
+  text-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
+}
+
+.hero-content p {
   color: #888;
+  font-size: 12pt;
+}
+
+.hero-image-placeholder {
+  flex: 1;
+  min-width: 300px;
+  height: 250px;
+  background: #151921;
+  border: 2px dashed #00d4ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00d4ff;
+  font-weight: bold;
+  border-radius: 8px;
+  box-shadow: inset 0 0 20px rgba(0, 212, 255, 0.1);
+}
+
+/* CATALOGO PRODUCTOS */
+.section-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14pt;
+  color: white;
+  border-left: 4px solid #00d4ff;
+  padding-left: 15px;
+}
+
+.product-card {
+  background: #151921;
+  border: 1px solid #2a2f3a;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 212, 255, 0.1);
+  border-color: #00d4ff;
+}
+
+.product-img {
+  height: 200px;
+  background: #1a1f29;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  font-weight: bold;
+}
+
+.product-info {
+  padding: 20px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-category {
+  font-size: 8pt;
+  color: #00d4ff;
+  text-transform: uppercase;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.product-title {
+  font-size: 14pt;
+  color: white;
+  margin-bottom: 10px;
+}
+
+.product-price {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 12pt;
+  color: #00ff88;
+  margin-bottom: 15px;
+}
+
+.meta-data {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9pt;
+  color: #888;
+  border-top: 1px solid #2a2f3a;
+  padding-top: 15px;
+  margin-bottom: 15px;
+  margin-top: auto; /* Empuja la metadata hacia abajo */
+}
+
+.btn-buy {
+  background: #00d4ff;
+  color: #0b0e14;
+  border: none;
+  padding: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-buy:hover {
+  background: white;
+}
+
+/* FOOTER ESTILOS */
+.footer-public {
+  background-color: #0b0e14;
+  border-top: 1px solid #2a2f3a;
+}
+
+.social-icon {
+  color: #888;
+  transition: all 0.3s ease;
+}
+
+.social-icon:hover {
+  color: #00d4ff;
+  transform: translateY(-3px);
+  filter: drop-shadow(0px 4px 8px rgba(0, 212, 255, 0.4));
 }

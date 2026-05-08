@@ -1,4 +1,16 @@
-import { CONSUMOS } from '../constants/config';
+export const CONSUMOS = {
+  PRECALENTAMIENTO: { watts: 350, horas: 0.083 },
+  MATERIALES: {
+    "PLA/PETG": 110,
+    "ABS/ASA": 190
+  },
+  ACE_PRO: 65
+};
+
+export const VALORES_DEFECTO = {
+  costoKWh: 120, 
+  margenGanancia: 50
+};
 
 export const calcularPresupuestoFinal = (datos) => {
   const pMaterial = CONSUMOS.MATERIALES[datos.material] || 110;
@@ -21,15 +33,19 @@ export const calcularPresupuestoFinal = (datos) => {
   const costoAmortizacion = vMaquina / 3000;
   const costoDesgaste = tImp * (costoAmortizacion + mHora);
 
-  // 4. Costo de Producción Unificado
-  const costoProduccionTotal = costoMat + costoEnergia + costoDesgaste;
+  // 4. NUEVO: Costos Extras y Mano de Obra
+  const costoExtras = parseFloat(datos.insumosExternos) || 0;
+  const costoManoObra = parseFloat(datos.manoObra) || 0;
 
-  // 5. Ganancia Base
+  // 5. Costo de Producción Unificado
+  const costoProduccionTotal = costoMat + costoEnergia + costoDesgaste + costoExtras + costoManoObra;
+
+  // 6. Ganancia Base
   const porcentajeGanancia = parseFloat(datos.margenGanancia || 0) / 100;
   const gananciaNeta = costoProduccionTotal * porcentajeGanancia;
   const precioVentaBase = costoProduccionTotal + gananciaNeta;
 
-  // 6. NUEVO: Cálculo de Descuento
+  // 7. Cálculo de Descuento
   const porcentajeDescuento = parseFloat(datos.descuento || 0) / 100;
   const montoDescuento = precioVentaBase * porcentajeDescuento;
   const precioVentaFinal = precioVentaBase - montoDescuento;
@@ -45,7 +61,9 @@ export const calcularPresupuestoFinal = (datos) => {
     detalle: {
       luz: costoEnergia,
       material: costoMat,
-      desgaste: costoDesgaste
+      desgaste: costoDesgaste,
+      extras: costoExtras,           // <-- Añadido al detalle en Firebase
+      manoObra: costoManoObra        // <-- Añadido al detalle en Firebase
     }
   };
 };
