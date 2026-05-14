@@ -23,7 +23,7 @@ function CarritoFlotante() {
     mensaje += `*TOTAL ESTIMADO: ${formatoMoneda(totalCarrito)}*\n\n`;
     mensaje += "¿Tienen disponibilidad para realizar este pedido?";
 
-    const urlBase = "https://wa.me/5493884393518"; // <-- CAMBIA ESTO POR TU NÚMERO
+    const urlBase = "https://wa.me/+5493885190175"; // <-- CAMBIA ESTO POR TU NÚMERO
     const urlFinal = `${urlBase}?text=${encodeURIComponent(mensaje)}`;
     
     window.open(urlFinal, "_blank");
