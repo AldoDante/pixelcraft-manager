@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react'; // <-- Agregamos useContext
 import { Link } from 'react-router-dom';
 import { db } from '../firebase'; 
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { CartContext } from '../context/CartContext'; // <-- Importamos nuestro Contexto
 
 function Catalogo() {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(true);
 
+  // Extraemos la función para agregar al carrito desde el contexto
+  const { agregarAlCarrito } = useContext(CartContext);
+
   useEffect(() => {
-    // 1. Apuntamos a la colección 'calculos'
-    // 2. Filtramos para traer SOLO los que tienen 'publicarCatalogo' en true
     const q = query(
       collection(db, "calculos"), 
       where("publicarCatalogo", "==", true)
@@ -72,7 +74,6 @@ function Catalogo() {
                 <div className="col-md-4" key={producto.id}>
                   <div className="product-card h-100">
                     <div className="product-img" style={{ padding: 0, overflow: 'hidden' }}>
-                      {/* Si hay una URL de imagen, la mostramos. Si no, mostramos el placeholder */}
                       {producto.imagenUrl ? (
                         <img 
                           src={producto.imagenUrl} 
@@ -89,7 +90,6 @@ function Catalogo() {
                       <span className="product-category">Impresión 3D</span>
                       <h3 className="product-title">{producto.nombre}</h3>
                       
-                      {/* Mostramos la descripción si existe */}
                       {producto.descripcion && (
                         <p className="small text-muted mb-2" style={{ fontSize: '0.85rem' }}>
                           {producto.descripcion}
@@ -102,21 +102,24 @@ function Catalogo() {
                       
                       <div className="meta-data">
                         <span>Mat: {producto.material || 'Consultar'}</span>
-                        {/* Mostramos tiempoEspera si existe, sino usamos el cálculo de horas */}
                         <span>
                           Tiempo: {producto.tiempoEspera ? producto.tiempoEspera : (producto.horas ? `${producto.horas} hs` : 'A convenir')}
                         </span>
                       </div>
                       
-                      {/* Botón de WhatsApp con el nombre del producto en el mensaje */}
-                      <a 
-                        href={`https://wa.me/549388??????? text=Hola! Me interesa el producto: ${encodeURIComponent(producto.nombre)}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="btn-buy w-100 text-center text-decoration-none d-block mt-2"
+                      {/* --- ACÁ CAMBIAMOS EL BOTÓN --- */}
+                      <button 
+                        onClick={() => agregarAlCarrito(producto)} 
+                        className="btn w-100 fw-bold mt-2 d-flex justify-content-center align-items-center gap-2"
+                        style={{ backgroundColor: '#00d4ff', color: '#0b0e14', transition: 'all 0.3s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#00a3cc'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#00d4ff'; e.currentTarget.style.color = '#0b0e14'; }}
                       >
-                        Consultar por WhatsApp
-                      </a>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                          <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5zM3.102 4l1.313 7h8.17l1.313-7H3.102zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                        </svg>
+                        AGREGAR
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -130,17 +133,13 @@ function Catalogo() {
         )}
       </section>
 
-      {/* FOOTER */}
+      {/* FOOTER (queda igual) */}
       <footer className="footer-public py-4 mt-auto">
-        {/* ... (Tu código del footer se mantiene igual) ... */}
         <div className="container text-center">
           <div className="brand-text mb-3 d-inline-flex">
             <span style={{ color: '#00d4ff', fontFamily: "'Press Start 2P', monospace", fontSize: '12pt' }}>PIXELCRAFT 3D</span>
           </div>
           <p className="text-muted small mb-3">San Salvador de Jujuy, Argentina - {new Date().getFullYear()}</p>
-          <div className="social-icons d-flex justify-content-center gap-4">
-             {/* ... SVGs de redes ... */}
-          </div>
         </div>
       </footer>
     </div>
