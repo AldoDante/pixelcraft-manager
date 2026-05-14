@@ -33,19 +33,25 @@ export const calcularPresupuestoFinal = (datos) => {
   const costoAmortizacion = vMaquina / 3000;
   const costoDesgaste = tImp * (costoAmortizacion + mHora);
 
-  // 4. NUEVO: Costos Extras y Mano de Obra
+  // 4. Costos Extras y Mano de Obra
   const costoExtras = parseFloat(datos.insumosExternos) || 0;
   const costoManoObra = parseFloat(datos.manoObra) || 0;
 
-  // 5. Costo de Producción Unificado
-  const costoProduccionTotal = costoMat + costoEnergia + costoDesgaste + costoExtras + costoManoObra;
+  // 5. Costo Base (Lo que SÍ lleva ganancia: Material + Energía + Desgaste + Mano de Obra)
+  const costoBaseConMargen = costoMat + costoEnergia + costoDesgaste + costoManoObra;
 
-  // 6. Ganancia Base
+  // 6. Costo de Producción Total (Para tus registros de "COSTO REAL", incluye el extra)
+  const costoProduccionTotal = costoBaseConMargen + costoExtras;
+
+  // 7. Ganancia Base (Aplicada SOLO a la impresión y mano de obra, NO al extra)
   const porcentajeGanancia = parseFloat(datos.margenGanancia || 0) / 100;
-  const gananciaNeta = costoProduccionTotal * porcentajeGanancia;
+  const gananciaNeta = costoBaseConMargen * porcentajeGanancia;
+  
+  // 8. Precio de Venta Base (Costo Total + Ganancia) 
+  // Al costo total ya se le había sumado el extra neto en el paso 6.
   const precioVentaBase = costoProduccionTotal + gananciaNeta;
 
-  // 7. Cálculo de Descuento
+  // 9. Cálculo de Descuento (Si aplica)
   const porcentajeDescuento = parseFloat(datos.descuento || 0) / 100;
   const montoDescuento = precioVentaBase * porcentajeDescuento;
   const precioVentaFinal = precioVentaBase - montoDescuento;
@@ -54,16 +60,16 @@ export const calcularPresupuestoFinal = (datos) => {
     id: Date.now(),
     nombre: datos.nombreProyecto || "Sin Nombre",
     costoProduccion: costoProduccionTotal,
-    precioOriginal: precioVentaBase, // Guardamos el precio sin descuento
-    precioVenta: precioVentaFinal,   // Este es el precio final a cobrar
+    precioOriginal: precioVentaBase, // Precio sin descuento
+    precioVenta: precioVentaFinal,   // Precio final a cobrar
     montoDescuento: montoDescuento,  // Plata descontada
     margenUsado: datos.margenGanancia,
     detalle: {
       luz: costoEnergia,
       material: costoMat,
       desgaste: costoDesgaste,
-      extras: costoExtras,           // <-- Añadido al detalle en Firebase
-      manoObra: costoManoObra        // <-- Añadido al detalle en Firebase
+      extras: costoExtras,           
+      manoObra: costoManoObra        
     }
   };
 };

@@ -5,17 +5,19 @@ function ListaProyectos({ proyectos, eliminarProyecto, limpiarTodo, cargarParaEd
   const formatoMoneda = (valor) => (valor || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
   return (
-    <div className="card shadow-sm h-100">
-      <div className="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-        <span className="fw-bold">HISTORIAL ({proyectos.length})</span>
+    <div className="card shadow-sm h-100" style={{ backgroundColor: '#151921', borderColor: '#2a2f3a' }}>
+      <div className="card-header d-flex justify-content-between align-items-center" style={{ backgroundColor: '#0b0e14', borderBottom: '1px solid #00d4ff' }}>
+        <span className="fw-bold" style={{ color: '#00d4ff', fontFamily: "'Press Start 2P', monospace", fontSize: '0.7rem' }}>
+          HISTORIAL ({proyectos.length})
+        </span>
         {proyectos.length > 0 && (
-          <button onClick={limpiarTodo} className="btn btn-danger btn-sm py-0" style={{ fontSize: '0.7rem' }}>
+          <button onClick={limpiarTodo} className="btn btn-sm py-0 fw-bold border-0" style={{ backgroundColor: '#ff4444', color: 'white', fontSize: '0.7rem' }}>
             Borrar Todo
           </button>
         )}
       </div>
       
-      <div className="card-body p-2" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+      <div className="card-body p-2" style={{ maxHeight: '70vh', overflowY: 'auto', backgroundColor: '#0b0e14' }}>
         {proyectos.length === 0 ? (
           <p className="text-center text-muted small mt-3">Sin proyectos guardados.</p>
         ) : (
@@ -26,40 +28,67 @@ function ListaProyectos({ proyectos, eliminarProyecto, limpiarTodo, cargarParaEd
             return (
               <div 
                 key={p.firestoreId || index} 
-                className="card mb-2 position-relative proyecto-card"
+                className="card mb-2 position-relative"
                 style={{ 
-                  borderLeft: '5px solid #00d2ff',
+                  backgroundColor: '#151921',
+                  border: '1px solid #2a2f3a',
+                  borderLeft: '5px solid #00d4ff',
                   cursor: 'pointer',
-                  transition: 'background-color 0.2s'
+                  transition: 'border-color 0.2s'
                 }}
                 onClick={() => cargarParaEditar(p)}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#00d4ff'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#2a2f3a'}
               >
                 <div className="card-body p-2">
                   <div className="d-flex justify-content-between align-items-center">
                     
-                    {/* INFO IZQUIERDA (Nombre y detalles) */}
-                    <div className="text-truncate" style={{ flex: 1, paddingRight: '10px' }}>
-                      <h6 className="card-title mb-1 fw-bold text-dark text-truncate">{p.nombre || "Sin Nombre"}</h6>
-                      <div className="text-muted small">
-                        <span className="badge bg-light text-dark border me-1">{p.material}</span>
-                        <span>{pesoSeguro}g</span> • <span>{Number(horasSeguras).toFixed(1)}h</span>
+                    {/* INFO IZQUIERDA (Nombre, detalles y COSTO reubicado) */}
+                    <div style={{ flex: 1, paddingRight: '10px', overflow: 'hidden' }}>
+                      <h6 className="card-title mb-1 fw-bold text-white text-truncate" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: '0.7rem', letterSpacing: '1px' }}>
+                        {p.nombre || "Sin Nombre"}
+                      </h6>
+                      <div className="text-muted small d-flex align-items-center gap-1 flex-wrap">
+                        <span className="badge border" style={{ backgroundColor: 'transparent', color: '#00d4ff', borderColor: '#00d4ff !important' }}>{p.material}</span>
+                        <span>{pesoSeguro}g</span> 
+                        <span>•</span> 
+                        <span>{Number(horasSeguras).toFixed(1)}h</span>
+                        <span className="fw-bold" style={{ color: '#888' }}>
+                          • Costo: {formatoMoneda(p.costoProduccion)}
+                        </span>
                       </div>
                     </div>
 
-                    {/* PRECIOS DERECHA (LADO A LADO) */}
-                    <div className="d-flex align-items-center" style={{ marginRight: '25px' }}> 
+                    {/* PRECIOS DERECHA (DESGLOSE MATEMÁTICO LIMPIO) */}
+                    <div className="d-flex flex-column align-items-end justify-content-center" style={{ marginRight: '30px', minWidth: '110px' }}> 
                       
-                      {/* Costo (Gris, a la izquierda) */}
-                      <span className="text-secondary fw-bold me-2" style={{ fontSize: '0.85rem' }}>
-                        {formatoMoneda(p.costoProduccion)}
-                      </span>
-                      
-                      {/* Venta (Azul, a la derecha) */}
-                      <span className="text-primary fw-bold" style={{ fontSize: '1.1rem' }}>
-                        {formatoMoneda(p.precioVenta)}
-                      </span>
+                      {p.montoDescuento > 0 ? (
+                        /* --- VISTA CON DESCUENTO --- */
+                        <div className="text-end w-100 mt-1">
+                          {/* Operación Matemática (Sin el costo) */}
+                          <div className="text-light" style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                            {formatoMoneda(p.precioOriginal)}
+                          </div>
+                          <div className="text-warning fw-bold" style={{ fontSize: '0.8rem' }}>
+                            - {formatoMoneda(p.montoDescuento)} <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>({p.descuento}%)</span>
+                          </div>
+                          
+                          {/* Línea divisoria */}
+                          <hr className="my-1" style={{ borderColor: '#2a2f3a', borderTopWidth: '2px' }} />
+                          
+                          {/* Total Final */}
+                          <div className="fw-bold" style={{ fontSize: '1.1rem', color: '#00d4ff', lineHeight: '1.2' }}>
+                            {formatoMoneda(p.precioVenta)}
+                          </div>
+                        </div>
+                      ) : (
+                        /* --- VISTA NORMAL (Sin descuento) --- */
+                        <div className="d-flex justify-content-end w-100">
+                          <span className="fw-bold" style={{ fontSize: '1.1rem', color: '#00d4ff' }}>
+                            {formatoMoneda(p.precioVenta)}
+                          </span>
+                        </div>
+                      )}
 
                     </div>
                   </div>
@@ -70,9 +99,9 @@ function ListaProyectos({ proyectos, eliminarProyecto, limpiarTodo, cargarParaEd
                       e.stopPropagation(); 
                       eliminarProyecto(p.firestoreId); 
                     }}
-                    className="btn btn-link text-danger position-absolute top-0 end-0 p-1"
+                    className="btn btn-link position-absolute top-50 end-0 translate-middle-y p-2"
                     title="Eliminar"
-                    style={{ opacity: 0.7, zIndex: 10 }} 
+                    style={{ color: '#ff4444', opacity: 0.7, zIndex: 10 }} 
                     onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
                     onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
                   >

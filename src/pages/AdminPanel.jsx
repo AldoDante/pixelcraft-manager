@@ -2,26 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { calcularPresupuestoFinal } from '../utils/calculos';
 import ListaProyectos from '../components/ListaProyectos';
 import { db } from '../firebase';
-// IMPORTANTE: Agregamos setDoc a las importaciones de Firestore
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, setDoc } from 'firebase/firestore';
 import { Link } from 'react-router-dom'; 
 
 function AdminPanel() {
-  // === SISTEMA DE LOGIN HARDCODEADO ===
-  const [isLogged, setIsLogged] = useState(false);
+  // === SISTEMA DE LOGIN CON MEMORIA DE SESIÓN ===
+  const [isLogged, setIsLogged] = useState(() => {
+    // Verifica si ya había iniciado sesión en esta pestaña
+    return sessionStorage.getItem('pixelcraft_admin_logged') === 'true';
+  });
   const [credenciales, setCredenciales] = useState({ usuario: '', password: '' });
 
   const handleLogin = (e) => {
     e.preventDefault();
     if (credenciales.usuario === 'pixel' && credenciales.password === 'pixel') {
       setIsLogged(true);
+      // Guarda la sesión en el navegador
+      sessionStorage.setItem('pixelcraft_admin_logged', 'true');
     } else {
       alert("Credenciales incorrectas. Intenta de nuevo.");
     }
   };
 
+  const handleLogout = () => {
+    setIsLogged(false);
+    // Borra la sesión al salir
+    sessionStorage.removeItem('pixelcraft_admin_logged');
+  };
+
   // === ESTADOS DE LA CALCULADORA ===
-  // 1. Ya no usamos localStorage. Iniciamos con valores seguros por si falla el internet.
   const [config, setConfig] = useState({
     kwh: 120, margen: 50, valorMaquina: 1200000, mantenimientoHora: 500
   });
@@ -42,10 +51,9 @@ function AdminPanel() {
   useEffect(() => {
     if (!isLogged) return;
 
-    // 2. NUEVO: Escuchamos la configuración global en tiempo real
     const unsubConfig = onSnapshot(doc(db, "configuracion", "global"), (docSnap) => {
       if (docSnap.exists()) {
-        setConfig(docSnap.data()); // Actualiza los ajustes si alguien los cambia
+        setConfig(docSnap.data());
       }
     });
 
@@ -62,7 +70,6 @@ function AdminPanel() {
     return () => { unsubProyectos(); unsubVentas(); unsubConfig(); };
   }, [isLogged]);
 
-  // 3. NUEVO: Función para guardar los ajustes en Firebase
   const guardarAjustesGlobales = async () => {
     try {
       await setDoc(doc(db, "configuracion", "global"), {
@@ -167,7 +174,8 @@ function AdminPanel() {
       <nav className="navbar-public">
         <div className="brand"><div className="pixel-logo">P</div><div className="brand-text"><span>PIXEL</span><span>CRAFT</span></div></div>
         <div className="nav-links d-none d-md-flex align-items-center"><Link to="/" className="nav-link text-decoration-none">Ver Catálogo Público</Link></div>
-        <button onClick={() => setIsLogged(false)} className="btn-login" style={{ borderColor: '#ff4444', color: '#ff4444' }}>CERRAR SESIÓN</button>
+        {/* Llama a handleLogout en lugar de solo cambiar el estado */}
+        <button onClick={handleLogout} className="btn-login" style={{ borderColor: '#ff4444', color: '#ff4444' }}>CERRAR SESIÓN</button>
       </nav>
 
       <div className="container-fluid py-4 flex-grow-1">
@@ -185,7 +193,6 @@ function AdminPanel() {
                   <div className="mb-2"><label className="small fw-bold text-white">Máquina ($)</label><input type="number" className="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" value={config.valorMaquina} onChange={e => setConfig({...config, valorMaquina: e.target.value})} /></div>
                   <div className="mb-2"><label className="small fw-bold text-white">Desgaste ($/h)</label><input type="number" className="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" value={config.mantenimientoHora} onChange={e => setConfig({...config, mantenimientoHora: e.target.value})} /></div>
                   <div className="mb-3"><label className="small fw-bold text-white">Margen %</label><input type="number" className="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" value={config.margen} onChange={e => setConfig({...config, margen: e.target.value})} /></div>
-                  {/* BOTÓN PARA GUARDAR EN LA NUBE */}
                   <button onClick={guardarAjustesGlobales} className="btn btn-sm w-100 fw-bold" style={{ backgroundColor: '#00d4ff', color: '#0b0e14' }}>
                     💾 GUARDAR EN LA NUBE
                   </button>
