@@ -15,7 +15,7 @@ function AdminPanel() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (credenciales.usuario === 'pixel' && credenciales.password === 'pixel') {
+    if (credenciales.usuario === 'mao2026' && credenciales.password === 'mao2026') {
       setIsLogged(true);
       // Guarda la sesión en el navegador
       sessionStorage.setItem('pixelcraft_admin_logged', 'true');
