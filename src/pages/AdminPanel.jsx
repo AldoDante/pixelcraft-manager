@@ -4,6 +4,7 @@ import ListaProyectos from '../components/ListaProyectos';
 import ModuloVentas from '../components/ModuloVentas';
 import AjustesGlobales from '../components/AjustesGlobales';
 import CalculadoraForm from '../components/CalculadoraForm';
+import ChatAsistenteIA from '../components/ChatAsistenteIA';
 import { db, auth } from '../firebase';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
@@ -62,8 +63,9 @@ function AdminPanel() {
     sessionStorage.removeItem('pixelcraft_admin_logged');
   };
 
-  // === CONTROL DE PESTAÑAS (TABS) ===
+  // === CONTROL DE PESTAÑAS (TABS) Y CHAT IA ===
   const [tabActiva, setTabActiva] = useState('calculadora');
+  const [chatAbierto, setChatAbierto] = useState(false);
 
   // === ESTADOS DE CONFIGURACIÓN GLOBAL ===
   const [config, setConfig] = useState({
@@ -425,22 +427,21 @@ function AdminPanel() {
               </span>
             )}
           </button>
-          <a
-            href={AI_ASSISTANT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn fw-bold px-4 py-2 text-decoration-none"
+          <button
+            type="button"
+            className="btn fw-bold px-4 py-2"
             style={{
-              backgroundColor: '#151921',
-              color: '#c084fc',
+              backgroundColor: chatAbierto ? '#a855f7' : '#151921',
+              color: chatAbierto ? '#fff' : '#c084fc',
               border: '1px solid #a855f7',
               fontSize: '0.85rem',
               letterSpacing: '0.5px',
-              boxShadow: '0 0 10px rgba(168,85,247,0.25)'
+              boxShadow: '0 0 10px rgba(168,85,247,0.3)'
             }}
+            onClick={() => setChatAbierto((prev) => !prev)}
           >
-            🤖 ASISTENTE IA ↗
-          </a>
+            🤖 ASISTENTE IA
+          </button>
         </div>
 
         {tabActiva === 'calculadora' ? (
@@ -484,6 +485,17 @@ function AdminPanel() {
           <ModuloVentas ventas={ventas} proyectos={proyectos} />
         )}
       </div>
+
+      <ChatAsistenteIA
+        abierto={chatAbierto}
+        setAbierto={setChatAbierto}
+        form={form}
+        ultimoResultado={ultimoResultado}
+        config={config}
+        proyectos={proyectos}
+        ventas={ventas}
+        aiWebUrl={AI_ASSISTANT_URL}
+      />
 
       <footer className="footer-public py-4 mt-auto">
         <div className="container text-center">
