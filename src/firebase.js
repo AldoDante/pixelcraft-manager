@@ -4,7 +4,7 @@ import { getAuth } from "firebase/auth";
 
 // Tu configuración de Firebase (esta parte estaba perfecta)
 const firebaseConfig = {
-  apiKey: "AIzaSyDSNgg0sc91irKRdCrDry9KRTw_1024TKU",
+  apiKey: "AIzaSyDSNGg0sc91irKRdCrDry9KRTw_1024TKU",
   authDomain: "pixelcraft-manager.firebaseapp.com",
   projectId: "pixelcraft-manager",
   storageBucket: "pixelcraft-manager.firebasestorage.app",
