@@ -9,13 +9,20 @@ const formatoARS = (valor) => {
   return `$${Math.round(num).toLocaleString('es-AR')}`;
 };
 
-function construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas }) {
+function construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas, nombreEmisor }) {
   const impresora = PERFILES_IMPRESORAS[form?.impresoraId];
   const horas = parseInt(form?.tiempoHoras, 10) || 0;
   const minutos = parseInt(form?.tiempoMinutos, 10) || 0;
+  const mediosPago = Array.isArray(form?.mediosPago) && form.mediosPago.length > 0
+    ? form.mediosPago.join(', ')
+    : 'No especificados';
 
   const lineas = [
     '=== DATOS ACTUALES EN LA CALCULADORA ===',
+    `Presupuesto emitido por: ${nombreEmisor || 'PixelCraft 3D'}`,
+    `Cliente: ${form?.clienteNombre || '(no especificado)'}`,
+    `Dirección del cliente: ${form?.clienteDireccion || '(no especificada)'}`,
+    `Medios de pago aceptados: ${mediosPago}`,
     `Proyecto: ${form?.nombreProyecto || '(sin nombre aún)'}`,
     `Impresora: ${impresora ? impresora.nombre : form?.impresoraId || 'No especificada'}`,
     `Material: ${form?.material || 'PLA/PETG'}`,
@@ -65,6 +72,7 @@ function ChatAsistenteIA({
   proyectos,
   ventas,
   aiWebUrl,
+  nombreEmisor,
 }) {
   const [mensajes, setMensajes] = useState([]);
   const [input, setInput] = useState('');
@@ -100,7 +108,7 @@ function ChatAsistenteIA({
 
       const idToken = await currentUser.getIdToken();
       const calculatorContext = incluirContexto
-        ? construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas })
+        ? construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas, nombreEmisor })
         : null;
 
       const res = await fetch('/api/chat', {
@@ -150,6 +158,7 @@ function ChatAsistenteIA({
         form,
         ultimoResultado,
         incluirDatosCalculadora: incluirContexto && Boolean(ultimoResultado),
+        nombreEmisor,
         compartir,
       });
       if (!res?.cancelado) {
@@ -355,7 +364,7 @@ function ChatAsistenteIA({
                     onClick={() => {
                       setIncluirContexto(true);
                       enviarMensaje(
-                        'Redacta un presupuesto formal y claro listo para entregar al cliente en PDF (con descripción del trabajo, material, precio final y nota de validez de 7 días). IMPORTANTE: NO incluyas costos internos de producción, ni luz, ni desgaste, ni nuestro margen de ganancia.'
+                        'Redacta ÚNICAMENTE el texto comercial descriptivo del trabajo para incluir en el cuerpo de nuestro presupuesto PDF oficial (2 párrafos cortos y hasta 4 viñetas con las especificaciones y beneficios para el cliente). REGLAS ESTRICTAS: 1) NO incluyas saludos ni frases introductorias como "Aquí tienes...". 2) NO incluyas encabezados, [LOGOTIPO], fechas, número de presupuesto, tablas Markdown, líneas separadoras (--- o ***), corchetes [] ni teléfonos/redes. 3) NO incluyas NINGUNA sugerencia para el envío, consejo de diseño ni borrador de WhatsApp al final, ya que este texto irá directo al cliente. 4) NO menciones costos internos, luz, desgaste ni margen de ganancia. Empieza directamente con la descripción del trabajo.'
                       );
                     }}
                   >

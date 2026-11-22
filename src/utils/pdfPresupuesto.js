@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import pixelcraftLogoUrl from '../assets/pixelcraft-logo.png';
 
 const formatoARS = (valor) => {
   const num = Number(valor);
@@ -22,66 +23,140 @@ const sanitizarNombreArchivo = (texto) => {
     .slice(0, 40) || 'Cotizacion';
 };
 
+let logoDataUrlCache = null;
+
+async function obtenerLogoDataUrl() {
+  if (logoDataUrlCache) return logoDataUrlCache;
+  try {
+    if (typeof pixelcraftLogoUrl === 'string' && pixelcraftLogoUrl.startsWith('data:')) {
+      logoDataUrlCache = pixelcraftLogoUrl;
+      return logoDataUrlCache;
+    }
+    const res = await fetch(pixelcraftLogoUrl);
+    const blob = await res.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    logoDataUrlCache = dataUrl;
+    return dataUrl;
+  } catch {
+    return null;
+  }
+}
+
 // Limpia Markdown y caracteres no soportados por Helvetica (emojis, etc.)
 const limpiarLineaParaPdf = (linea) => {
   return linea
-    // Quitar bloques de código o backticks
     .replace(/`+/g, '')
-    // Quitar negritas/cursivas markdown
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
     .replace(/(^|\s)\*([^*\n]+)\*(?=\s|$)/g, '$1$2')
-    // Quitar encabezados markdown (#, ##, ###)
     .replace(/^\s{0,3}#{1,6}\s+/, '')
-    // Quitar citas markdown
     .replace(/^\s*>\s?/, '')
-    // Normalizar viñetas
     .replace(/^\s*[-*•]\s+/, '• ')
-    // Reemplazar comillas/guiones tipográficos
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/[—–]/g, '-')
-    // Quitar emojis y símbolos fuera de Latin-1 / puntuación común
     .replace(/[^\u0020-\u00FF•]/g, '')
     .replace(/\s{2,}/g, ' ')
     .trimEnd();
 };
 
-const dibujarEncabezado = (doc, fechaEmision, fechaVencimiento, codigo) => {
+// Quita textos meta de la IA (saludos introductorios, separadores, tablas raw, placeholders, sugerencias de envío)
+const filtrarContenidoParaCliente = (texto) => {
+  if (!texto) return '';
+  const lineas = texto.split(/\r?\n/);
+  const resultado = [];
+
+  for (let i = 0; i < lineas.length; i++) {
+    const raw = lineas[i];
+    const trimmed = raw.trim();
+
+    // Cortar cualquier bloque final de "Sugerencias..." o "Mensaje de WhatsApp..."
+    if (
+      /^\*{0,2}#{0,4}\s*(sugerencias|notas?\s+para\s+el\s+env[ií]o|consejos?\s+para|mensaje\s+de\s+whatsapp)/i.test(
+        trimmed
+      )
+    ) {
+      break;
+    }
+
+    // Omitir divisores markdown (---, ***, ___)
+    if (/^[-*_]{3,}$/.test(trimmed)) continue;
+
+    // Omitir líneas de tablas markdown
+    if (/^\|.*\|$/.test(trimmed)) continue;
+
+    // Omitir placeholders con corchetes [LOGOTIPO...], [Tu Teléfono...], [Insertar...]
+    if (/\[(logotipo|logo|tu\s+tel[eé]fono|tu\s+instagram|insertar|nombre\s+del\s+cliente|mencionar)/i.test(trimmed)) {
+      continue;
+    }
+
+    // Omitir línea introductoria conversacional si aparece al principio
+    if (
+      resultado.length === 0 &&
+      /^(aqu[ií]\s+tienes|claro[,.!]|por\s+supuesto|con\s+gusto|te\s+dejo|a\s+continuaci[oó]n)/i.test(trimmed)
+    ) {
+      continue;
+    }
+
+    resultado.push(raw);
+  }
+
+  return resultado.join('\n').trim();
+};
+
+const dibujarEncabezado = (doc, { logoDataUrl, fechaEmision, fechaVencimiento, codigo, nombreEmisor }) => {
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Banda superior oscura estilo PixelCraft
-  doc.setFillColor(11, 14, 20);
-  doc.rect(0, 0, pageWidth, 34, 'F');
+  // Banda superior oscura matching exacto con fondo del logo (#151921 -> RGB 21, 25, 33)
+  doc.setFillColor(21, 25, 33);
+  doc.rect(0, 0, pageWidth, 38, 'F');
 
   // Línea de acento cian
   doc.setFillColor(0, 212, 255);
-  doc.rect(0, 34, pageWidth, 1.5, 'F');
+  doc.rect(0, 38, pageWidth, 1.5, 'F');
 
-  // Marca izquierda
-  doc.setTextColor(0, 212, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
-  doc.text('PIXELCRAFT 3D', 15, 16);
+  // Logo real a la izquierda (155x51 -> ratio 3.039 -> 48mm x 15.8mm)
+  if (logoDataUrl) {
+    doc.addImage(logoDataUrl, 'PNG', 14, 7.5, 48, 15.8);
+  } else {
+    doc.setTextColor(0, 212, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('PIXELCRAFT 3D', 15, 17);
+  }
 
   doc.setTextColor(180, 195, 215);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('Impresión 3D & Manufactura Aditiva · San Salvador de Jujuy', 15, 24);
+  doc.setFontSize(8.5);
+  doc.text('Impresión 3D & Manufactura Aditiva · San Salvador de Jujuy', 15, 30.5);
 
-  // Datos de presupuesto derecha
+  // Datos de presupuesto a la derecha
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
-  doc.text('PRESUPUESTO', pageWidth - 15, 13, { align: 'right' });
+  doc.text('PRESUPUESTO', pageWidth - 15, 11.5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.3);
   doc.setTextColor(200, 212, 228);
-  doc.text(`Ref: ${codigo}`, pageWidth - 15, 19.5, { align: 'right' });
-  doc.text(`Fecha: ${fechaEmision}  |  Válido hasta: ${fechaVencimiento}`, pageWidth - 15, 25.5, {
+  doc.text(`Ref: ${codigo}`, pageWidth - 15, 17.5, { align: 'right' });
+  doc.text(`Fecha: ${fechaEmision}  |  Válido hasta: ${fechaVencimiento}`, pageWidth - 15, 23, {
     align: 'right',
   });
+
+  if (nombreEmisor) {
+    doc.setTextColor(0, 212, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.3);
+    doc.text(`Emitido por: ${limpiarLineaParaPdf(nombreEmisor)}`, pageWidth - 15, 29.5, {
+      align: 'right',
+    });
+  }
 };
 
 const dibujarPiesDePagina = (doc) => {
@@ -118,9 +193,11 @@ export async function exportarPresupuestoPdf({
   form = null,
   ultimoResultado = null,
   incluirDatosCalculadora = false,
+  nombreEmisor = '',
   compartir = false,
 }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const logoDataUrl = await obtenerLogoDataUrl();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const marginX = 15;
@@ -135,72 +212,112 @@ export async function exportarPresupuestoPdf({
     hoy.getDate()
   ).padStart(2, '0')}-${String(hoy.getHours()).padStart(2, '0')}${String(hoy.getMinutes()).padStart(2, '0')}`;
 
-  dibujarEncabezado(doc, fechaEmision, fechaVencimiento, codigo);
+  const headerMeta = { logoDataUrl, fechaEmision, fechaVencimiento, codigo, nombreEmisor };
+  dibujarEncabezado(doc, headerMeta);
 
-  let y = 44;
+  let y = 46;
 
-  // Bloque resumen del presupuesto (solo datos aptos para el cliente, sin costos internos ni margen)
+  // Bloque 1: Datos del cliente y medios de pago (si están cargados)
+  const clienteNombre = limpiarLineaParaPdf(form?.clienteNombre || '');
+  const clienteDireccion = limpiarLineaParaPdf(form?.clienteDireccion || '');
+  const mediosPago = Array.isArray(form?.mediosPago)
+    ? form.mediosPago.map((m) => limpiarLineaParaPdf(m)).filter(Boolean)
+    : [];
+
+  if (clienteNombre || clienteDireccion || mediosPago.length > 0) {
+    const filas = [];
+    if (clienteNombre) filas.push({ etiqueta: 'Cliente:', valor: clienteNombre });
+    if (clienteDireccion) filas.push({ etiqueta: 'Dirección:', valor: clienteDireccion });
+    if (mediosPago.length > 0) filas.push({ etiqueta: 'Medios de pago:', valor: mediosPago.join('  ·  ') });
+
+    const boxH = 8 + filas.length * 6;
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(marginX, y, maxWidth, boxH, 2.5, 2.5, 'FD');
+
+    let fy = y + 7;
+    for (const fila of filas) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.2);
+      doc.setTextColor(15, 23, 42);
+      doc.text(fila.etiqueta, marginX + 5, fy);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(51, 65, 85);
+      doc.text(fila.valor, marginX + 35, fy);
+      fy += 6;
+    }
+
+    y += boxH + 6;
+  }
+
+  // Bloque 2: Resumen del trabajo + Precio Final (solo datos aptos para el cliente, sin costos ni margen)
   if (incluirDatosCalculadora && ultimoResultado) {
-    const nombreTrabajo = limpiarLineaParaPdf(ultimoResultado.nombre || form?.nombreProyecto || 'Impresion 3D a medida');
+    const nombreTrabajo = limpiarLineaParaPdf(
+      ultimoResultado.nombre || form?.nombreProyecto || 'Impresión 3D a medida'
+    );
     const material = limpiarLineaParaPdf(form?.material || 'PLA/PETG');
     const plazo = limpiarLineaParaPdf(form?.tiempoEspera || '');
     const extrasNota = limpiarLineaParaPdf(ultimoResultado.detalle?.notaExtras || form?.detalleExtras || '');
 
-    const boxHeight = extrasNota || plazo ? 34 : 26;
+    const lineasInfo = [`Proyecto: ${nombreTrabajo}`, `Material: ${material}`];
+    if (plazo) lineasInfo.push(`Plazo estimado: ${plazo}`);
+    if (extrasNota) lineasInfo.push(`Incluye: ${extrasNota.slice(0, 62)}`);
+
+    const boxHeight = Math.max(26, 12 + lineasInfo.length * 5.8);
 
     doc.setFillColor(244, 248, 252);
     doc.setDrawColor(0, 180, 220);
-    doc.setLineWidth(0.4);
+    doc.setLineWidth(0.45);
     doc.roundedRect(marginX, y, maxWidth, boxHeight, 2.5, 2.5, 'FD');
 
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
+    doc.setFontSize(10);
     doc.text('RESUMEN DEL TRABAJO', marginX + 5, y + 7);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
+    doc.setFontSize(9.2);
     doc.setTextColor(51, 65, 85);
-    doc.text(`Proyecto: ${nombreTrabajo}`, marginX + 5, y + 14);
-    doc.text(`Material: ${material}`, marginX + 5, y + 20);
-
-    let extraY = y + 26;
-    if (plazo) {
-      doc.text(`Plazo estimado: ${plazo}`, marginX + 5, extraY);
-      extraY += 5.5;
-    } else if (extrasNota) {
-      doc.text(`Detalles incluidos: ${extrasNota.slice(0, 58)}`, marginX + 5, extraY);
+    let infoY = y + 13.5;
+    for (const ln of lineasInfo) {
+      doc.text(ln, marginX + 5, infoY);
+      infoY += 5.8;
     }
 
     // Caja de precio final a la derecha
     const priceBoxW = 54;
+    const priceBoxH = 20;
     const priceBoxX = marginX + maxWidth - priceBoxW - 4;
-    doc.setFillColor(11, 14, 20);
-    doc.roundedRect(priceBoxX, y + 4.5, priceBoxW, boxHeight - 9, 2, 2, 'F');
+    const priceBoxY = y + (boxHeight - priceBoxH) / 2;
+    doc.setFillColor(21, 25, 33);
+    doc.roundedRect(priceBoxX, priceBoxY, priceBoxW, priceBoxH, 2, 2, 'F');
 
     doc.setTextColor(148, 163, 184);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.text('TOTAL FINAL', priceBoxX + priceBoxW / 2, y + 10.5, { align: 'center' });
+    doc.text('TOTAL FINAL', priceBoxX + priceBoxW / 2, priceBoxY + 6.2, { align: 'center' });
 
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.text(formatoARS(ultimoResultado.precioVenta), priceBoxX + priceBoxW / 2, y + 19, {
+    doc.text(formatoARS(ultimoResultado.precioVenta), priceBoxX + priceBoxW / 2, priceBoxY + 14.5, {
       align: 'center',
     });
 
-    y += boxHeight + 10;
+    y += boxHeight + 9;
   }
 
-  // Contenido redactado por la IA (o detalle base si se exportó directo)
-  const textoBase = contenidoIA?.trim()
-    ? contenidoIA
-    : 'Presupuesto generado por PixelCraft 3D. Ante cualquier consulta o modificacion de medidas, colores o cantidades, estamos a disposicion.';
+  // Bloque 3: Detalle comercial redactado por la IA (limpio, sin sugerencias internas)
+  const textoLimpio = filtrarContenidoParaCliente(contenidoIA);
+  const textoBase = textoLimpio
+    ? textoLimpio
+    : 'Presupuesto generado por PixelCraft 3D. Ante cualquier consulta o modificación de medidas, colores o cantidades, estamos a disposición.';
 
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10.8);
   doc.text('DETALLE DEL PRESUPUESTO', marginX, y);
   y += 2.5;
   doc.setDrawColor(0, 212, 255);
@@ -215,7 +332,7 @@ export async function exportarPresupuestoPdf({
     const limpia = limpiarLineaParaPdf(lineaRaw);
 
     if (!limpia) {
-      y += 3.5;
+      y += 3.2;
       continue;
     }
 
@@ -224,7 +341,7 @@ export async function exportarPresupuestoPdf({
     const anchoTexto = esVinieta ? maxWidth - 3 : maxWidth;
 
     doc.setFont('helvetica', esTitulo ? 'bold' : 'normal');
-    doc.setFontSize(esTitulo ? 10.5 : 9.8);
+    doc.setFontSize(esTitulo ? 10.2 : 9.6);
     doc.setTextColor(esTitulo ? 15 : 30, esTitulo ? 23 : 41, esTitulo ? 42 : 59);
 
     const envueltas = doc.splitTextToSize(limpia, anchoTexto);
@@ -232,19 +349,21 @@ export async function exportarPresupuestoPdf({
     for (const sub of envueltas) {
       if (y > maxY) {
         doc.addPage();
-        dibujarEncabezado(doc, fechaEmision, fechaVencimiento, codigo);
-        y = 44;
+        dibujarEncabezado(doc, headerMeta);
+        y = 46;
       }
       doc.text(sub, xPos, y);
-      y += esTitulo ? 5.8 : 5.2;
+      y += esTitulo ? 5.6 : 5.1;
     }
 
-    if (esTitulo) y += 1;
+    if (esTitulo) y += 0.8;
   }
 
   dibujarPiesDePagina(doc);
 
-  const nombreBase = sanitizarNombreArchivo(ultimoResultado?.nombre || form?.nombreProyecto || 'Presupuesto');
+  const nombreBase = sanitizarNombreArchivo(
+    clienteNombre || ultimoResultado?.nombre || form?.nombreProyecto || 'Presupuesto'
+  );
   const fechaArchivo = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(
     hoy.getDate()
   ).padStart(2, '0')}`;
@@ -257,8 +376,8 @@ export async function exportarPresupuestoPdf({
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `Presupuesto PixelCraft 3D - ${ultimoResultado?.nombre || 'Cotizacion'}`,
-          text: 'Adjunto el presupuesto solicitado (validez: 7 dias).',
+          title: `Presupuesto PixelCraft 3D - ${ultimoResultado?.nombre || 'Cotización'}`,
+          text: 'Adjunto el presupuesto solicitado (validez: 7 días).',
         });
         return { nombreArchivo, compartido: true };
       }
@@ -266,7 +385,6 @@ export async function exportarPresupuestoPdf({
       if (err?.name === 'AbortError') {
         return { nombreArchivo, compartido: false, cancelado: true };
       }
-      // Si falla share, cae a descarga normal
     }
   }
 
@@ -275,7 +393,11 @@ export async function exportarPresupuestoPdf({
 }
 
 export function soportaCompartirPdf() {
-  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function' || typeof navigator.canShare !== 'function') {
+  if (
+    typeof navigator === 'undefined' ||
+    typeof navigator.share !== 'function' ||
+    typeof navigator.canShare !== 'function'
+  ) {
     return false;
   }
   try {

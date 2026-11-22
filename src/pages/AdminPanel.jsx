@@ -12,6 +12,13 @@ import { Link } from 'react-router-dom';
 
 const AI_ASSISTANT_URL = import.meta.env.VITE_AI_ASSISTANT_URL || 'https://aldo-dante.tail97f23e.ts.net/';
 
+const NOMBRES_SOCIOS = {
+  'dante.acuario79@gmail.com': 'Aldo Dante Antivilo',
+  'japodeck@gmail.com': 'Alejandro Ruiz',
+};
+
+const MEDIOS_PAGO_DEFECTO = ['Efectivo', 'Transferencia'];
+
 function AdminPanel() {
   // === SISTEMA DE LOGIN SEGURO CON FIREBASE AUTH ===
   const [user, setUser] = useState(null);
@@ -21,6 +28,8 @@ function AdminPanel() {
   const [loggingIn, setLoggingIn] = useState(false);
 
   const isLogged = Boolean(user);
+  const nombreEmisor =
+    NOMBRES_SOCIOS[user?.email?.toLowerCase()] || user?.displayName || user?.email || 'PixelCraft 3D';
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -82,6 +91,9 @@ function AdminPanel() {
 
   // === FORMULARIO DE COTIZACIÓN ===
   const [form, setForm] = useState({
+    clienteNombre: "",
+    clienteDireccion: "",
+    mediosPago: [...MEDIOS_PAGO_DEFECTO],
     nombreProyecto: "",
     impresoraId: "kobra-combo",
     material: "PLA/PETG",
@@ -143,6 +155,9 @@ function AdminPanel() {
     const horasTotales = proyecto.tiempoTotal || proyecto.horas || 0;
 
     setForm({
+      clienteNombre: proyecto.clienteNombre || "",
+      clienteDireccion: proyecto.clienteDireccion || "",
+      mediosPago: Array.isArray(proyecto.mediosPago) ? proyecto.mediosPago : [...MEDIOS_PAGO_DEFECTO],
       nombreProyecto: proyecto.nombre || "",
       impresoraId: proyecto.impresoraId || "kobra-combo",
       material: proyecto.material || "PLA/PETG",
@@ -168,6 +183,9 @@ function AdminPanel() {
     setEditandoId(null);
     setCalculoFinalizado(false);
     setForm({
+      clienteNombre: "",
+      clienteDireccion: "",
+      mediosPago: [...MEDIOS_PAGO_DEFECTO],
       nombreProyecto: "",
       impresoraId: "kobra-combo",
       material: "PLA/PETG",
@@ -195,6 +213,8 @@ function AdminPanel() {
     setEditandoId(null);
     setForm(prev => ({
       ...prev,
+      clienteNombre: "",
+      clienteDireccion: "",
       nombreProyecto: "",
       pesoTotal: "",
       tiempoHoras: "",
@@ -233,6 +253,10 @@ function AdminPanel() {
     });
 
     const datosAGuardar = {
+      clienteNombre: form.clienteNombre || "",
+      clienteDireccion: form.clienteDireccion || "",
+      mediosPago: Array.isArray(form.mediosPago) ? form.mediosPago : [],
+      creadoPor: nombreEmisor,
       nombre: form.nombreProyecto,
       impresoraId: form.impresoraId,
       impresoraNombre: resultadoCalculo.impresoraNombre,
@@ -495,6 +519,7 @@ function AdminPanel() {
         proyectos={proyectos}
         ventas={ventas}
         aiWebUrl={AI_ASSISTANT_URL}
+        nombreEmisor={nombreEmisor}
       />
 
       <footer className="footer-public py-4 mt-auto">

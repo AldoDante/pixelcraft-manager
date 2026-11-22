@@ -1,6 +1,12 @@
 import React from 'react';
 import { PERFILES_IMPRESORAS } from '../utils/calculos';
 
+const OPCIONES_MEDIOS_PAGO = [
+  { id: 'efectivo', label: 'Efectivo' },
+  { id: 'transferencia', label: 'Transferencia' },
+  { id: 'tarjeta-mp', label: 'Tarjeta de crédito (MP)' },
+];
+
 function CalculadoraForm({
   form,
   setForm,
@@ -15,6 +21,15 @@ function CalculadoraForm({
   const formatoMoneda = (val) => (val || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
   const impresoraActual = PERFILES_IMPRESORAS[form.impresoraId || 'kobra-combo'];
+  const mediosSeleccionados = Array.isArray(form.mediosPago) ? form.mediosPago : [];
+
+  const toggleMedioPago = (label) => {
+    const existe = mediosSeleccionados.includes(label);
+    const actualizados = existe
+      ? mediosSeleccionados.filter((m) => m !== label)
+      : [...mediosSeleccionados, label];
+    setForm({ ...form, mediosPago: actualizados });
+  };
 
   return (
     <div className="d-flex flex-column gap-3">
@@ -37,7 +52,55 @@ function CalculadoraForm({
 
         <div className="card-body p-3">
           <form onSubmit={handleCalcular} noValidate>
-            
+
+            {/* 0. DATOS DEL CLIENTE Y MEDIOS DE PAGO (PRIMERO, ANTES DE IMPRESORA) */}
+            <div className="mb-3 p-2 rounded" style={{ backgroundColor: '#0b0e14', border: '1px solid #2a2f3a' }}>
+              <label className="small fw-bold text-info mb-2 d-block">
+                DATOS DEL CLIENTE Y MEDIOS DE PAGO
+              </label>
+              <div className="row g-2 mb-2">
+                <div className="col-md-6">
+                  <input
+                    type="text"
+                    className="form-control form-control-sm bg-dark text-white border-secondary"
+                    placeholder="Nombre del Cliente / Empresa"
+                    value={form.clienteNombre || ''}
+                    onChange={(e) => setForm({ ...form, clienteNombre: e.target.value })}
+                  />
+                </div>
+                <div className="col-md-6">
+                  <input
+                    type="text"
+                    className="form-control form-control-sm bg-dark text-white border-secondary"
+                    placeholder="Dirección del Cliente"
+                    value={form.clienteDireccion || ''}
+                    onChange={(e) => setForm({ ...form, clienteDireccion: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="d-flex flex-wrap gap-3 pt-1">
+                {OPCIONES_MEDIOS_PAGO.map((opcion) => (
+                  <div className="form-check m-0" key={opcion.id}>
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id={`pago-${opcion.id}`}
+                      checked={mediosSeleccionados.includes(opcion.label)}
+                      onChange={() => toggleMedioPago(opcion.label)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <label
+                      className="form-check-label small text-white"
+                      htmlFor={`pago-${opcion.id}`}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {opcion.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* 1. SELECCIÓN DE IMPRESORA */}
             <div className="mb-3 p-2 rounded" style={{ backgroundColor: '#0b0e14', border: '1px solid #2a2f3a' }}>
               <label className="small fw-bold text-info mb-1 d-flex justify-content-between">
