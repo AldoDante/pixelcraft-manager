@@ -4,29 +4,61 @@ import ListaProyectos from '../components/ListaProyectos';
 import ModuloVentas from '../components/ModuloVentas';
 import AjustesGlobales from '../components/AjustesGlobales';
 import CalculadoraForm from '../components/CalculadoraForm';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Link } from 'react-router-dom';
 
-function AdminPanel() {
-  // === SISTEMA DE LOGIN CON MEMORIA DE SESIÓN ===
-  const [isLogged, setIsLogged] = useState(() => {
-    return sessionStorage.getItem('pixelcraft_admin_logged') === 'true';
-  });
-  const [credenciales, setCredenciales] = useState({ usuario: '', password: '' });
+const AI_ASSISTANT_URL = import.meta.env.VITE_AI_ASSISTANT_URL || 'https://aldo-dante.tail97f23e.ts.net/';
 
-  const handleLogin = (e) => {
+function AdminPanel() {
+  // === SISTEMA DE LOGIN SEGURO CON FIREBASE AUTH ===
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [credenciales, setCredenciales] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  const isLogged = Boolean(user);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (credenciales.usuario === 'mao2026' && credenciales.password === 'mao2026') {
-      setIsLogged(true);
-      sessionStorage.setItem('pixelcraft_admin_logged', 'true');
-    } else {
-      alert("Credenciales incorrectas. Intenta de nuevo.");
+    setLoginError('');
+    setLoggingIn(true);
+    try {
+      await signInWithEmailAndPassword(auth, credenciales.email.trim(), credenciales.password);
+      setCredenciales({ email: '', password: '' });
+    } catch (error) {
+      console.error("Error de autenticación:", error.code);
+      if (
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/invalid-email'
+      ) {
+        setLoginError('Correo o contraseña incorrectos.');
+      } else if (error.code === 'auth/too-many-requests') {
+        setLoginError('Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setLoginError('Falta activar "Correo electrónico/contraseña" en Firebase Authentication.');
+      } else {
+        setLoginError('No se pudo iniciar sesión. Intenta nuevamente.');
+      }
+    } finally {
+      setLoggingIn(false);
     }
   };
 
-  const handleLogout = () => {
-    setIsLogged(false);
+  const handleLogout = async () => {
+    await signOut(auth);
     sessionStorage.removeItem('pixelcraft_admin_logged');
   };
 
@@ -256,6 +288,15 @@ function AdminPanel() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="container-fluid d-flex flex-column justify-content-center align-items-center min-vh-100" style={{ backgroundColor: '#0b0e14', color: '#00d4ff' }}>
+        <div className="spinner-border text-info mb-3" role="status" />
+        <p className="small text-secondary mb-0">Verificando sesión...</p>
+      </div>
+    );
+  }
+
   if (!isLogged) {
     return (
       <div className="container-fluid d-flex flex-column min-vh-100 p-0" style={{ backgroundColor: '#0b0e14' }}>
@@ -266,22 +307,29 @@ function AdminPanel() {
           </div>
           <Link to="/" className="btn-login text-decoration-none">VOLVER AL CATÁLOGO</Link>
         </nav>
-        <div className="flex-grow-1 d-flex justify-content-center align-items-center">
-          <div className="card shadow-lg border-info" style={{ width: '350px', backgroundColor: '#151921' }}>
+        <div className="flex-grow-1 d-flex justify-content-center align-items-center p-3">
+          <div className="card shadow-lg border-info" style={{ width: '360px', maxWidth: '100%', backgroundColor: '#151921' }}>
             <div className="card-header bg-dark border-info text-center">
               <h4 style={{ color: '#00d4ff', fontFamily: "'Press Start 2P', monospace", fontSize: '10pt', margin: '15px 0' }}>
                 PIXELCRAFT ADMIN
               </h4>
             </div>
             <div className="card-body">
+              {loginError && (
+                <div className="alert alert-danger py-2 px-3 small mb-3" role="alert">
+                  {loginError}
+                </div>
+              )}
               <form onSubmit={handleLogin}>
                 <div className="mb-3">
-                  <label className="text-white small">Usuario</label>
+                  <label className="text-white small">Correo electrónico</label>
                   <input 
-                    type="text" 
+                    type="email" 
                     className="form-control bg-dark text-white border-secondary" 
-                    value={credenciales.usuario} 
-                    onChange={(e) => setCredenciales({ ...credenciales, usuario: e.target.value })} 
+                    placeholder="socio@gmail.com"
+                    autoComplete="email"
+                    value={credenciales.email} 
+                    onChange={(e) => setCredenciales({ ...credenciales, email: e.target.value })} 
                     required 
                   />
                 </div>
@@ -290,13 +338,19 @@ function AdminPanel() {
                   <input 
                     type="password" 
                     className="form-control bg-dark text-white border-secondary" 
+                    autoComplete="current-password"
                     value={credenciales.password} 
                     onChange={(e) => setCredenciales({ ...credenciales, password: e.target.value })} 
                     required 
                   />
                 </div>
-                <button type="submit" className="btn w-100 fw-bold text-dark" style={{ backgroundColor: '#00d4ff' }}>
-                  INGRESAR
+                <button
+                  type="submit"
+                  disabled={loggingIn}
+                  className="btn w-100 fw-bold text-dark"
+                  style={{ backgroundColor: '#00d4ff' }}
+                >
+                  {loggingIn ? 'VERIFICANDO...' : 'INGRESAR'}
                 </button>
               </form>
             </div>
@@ -313,8 +367,13 @@ function AdminPanel() {
           <div className="pixel-logo">P</div>
           <div className="brand-text"><span>PIXEL</span><span>CRAFT</span></div>
         </div>
-        <div className="nav-links d-none d-md-flex align-items-center">
+        <div className="nav-links d-none d-md-flex align-items-center gap-3">
           <Link to="/" className="nav-link text-decoration-none">Ver Catálogo Público</Link>
+          {user?.email && (
+            <span className="small text-secondary" style={{ fontSize: '0.8rem' }}>
+              {user.email}
+            </span>
+          )}
         </div>
         <button onClick={handleLogout} className="btn-login" style={{ borderColor: '#ff4444', color: '#ff4444' }}>
           CERRAR SESIÓN
@@ -366,6 +425,22 @@ function AdminPanel() {
               </span>
             )}
           </button>
+          <a
+            href={AI_ASSISTANT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn fw-bold px-4 py-2 text-decoration-none"
+            style={{
+              backgroundColor: '#151921',
+              color: '#c084fc',
+              border: '1px solid #a855f7',
+              fontSize: '0.85rem',
+              letterSpacing: '0.5px',
+              boxShadow: '0 0 10px rgba(168,85,247,0.25)'
+            }}
+          >
+            🤖 ASISTENTE IA ↗
+          </a>
         </div>
 
         {tabActiva === 'calculadora' ? (
