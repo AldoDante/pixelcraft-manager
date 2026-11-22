@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth } from '../firebase';
 import { PERFILES_IMPRESORAS } from '../utils/calculos';
+import { exportarPresupuestoPdf, soportaCompartirPdf } from '../utils/pdfPresupuesto';
 
 const formatoARS = (valor) => {
   const num = Number(valor);
@@ -71,6 +72,8 @@ function ChatAsistenteIA({
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [copiadoIdx, setCopiadoIdx] = useState(null);
+  const [pdfFeedbackIdx, setPdfFeedbackIdx] = useState(null);
+  const puedeCompartir = soportaCompartirPdf();
   const finChatRef = useRef(null);
 
   useEffect(() => {
@@ -137,6 +140,25 @@ function ChatAsistenteIA({
       setTimeout(() => setCopiadoIdx(null), 1800);
     } catch {
       // Fallback silencioso si el navegador bloquea portapapeles
+    }
+  };
+
+  const descargarOCompartirPdf = async (contenidoIA, idx, compartir = false) => {
+    try {
+      const res = await exportarPresupuestoPdf({
+        contenidoIA,
+        form,
+        ultimoResultado,
+        incluirDatosCalculadora: incluirContexto && Boolean(ultimoResultado),
+        compartir,
+      });
+      if (!res?.cancelado) {
+        setPdfFeedbackIdx(idx);
+        setTimeout(() => setPdfFeedbackIdx(null), 2000);
+      }
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+      setError('No se pudo generar el PDF. Intenta nuevamente.');
     }
   };
 
@@ -277,19 +299,37 @@ function ChatAsistenteIA({
               </label>
             </div>
             {incluirContexto ? (
-              <span
-                className="badge text-truncate"
-                style={{
-                  maxWidth: '170px',
-                  backgroundColor: 'rgba(0, 212, 255, 0.14)',
-                  color: '#00d4ff',
-                  border: '1px solid rgba(0, 212, 255, 0.3)',
-                  fontWeight: 500,
-                }}
-                title={resumenChip}
-              >
-                {resumenChip}
-              </span>
+              <div className="d-flex align-items-center gap-1">
+                <span
+                  className="badge text-truncate"
+                  style={{
+                    maxWidth: '140px',
+                    backgroundColor: 'rgba(0, 212, 255, 0.14)',
+                    color: '#00d4ff',
+                    border: '1px solid rgba(0, 212, 255, 0.3)',
+                    fontWeight: 500,
+                  }}
+                  title={resumenChip}
+                >
+                  {resumenChip}
+                </span>
+                {ultimoResultado && (
+                  <button
+                    type="button"
+                    title="Exportar presupuesto actual directo a PDF"
+                    onClick={() => descargarOCompartirPdf('', 'rapido', false)}
+                    className="btn btn-sm py-0 px-2"
+                    style={{
+                      fontSize: '0.7rem',
+                      color: '#fff',
+                      backgroundColor: '#1f2937',
+                      border: '1px solid #38bdf8',
+                    }}
+                  >
+                    {pdfFeedbackIdx === 'rapido' ? '✅' : '📄 PDF'}
+                  </button>
+                )}
+              </div>
             ) : (
               <span className="text-secondary">Modo chat libre</span>
             )}
@@ -309,13 +349,31 @@ function ChatAsistenteIA({
                     style={{
                       backgroundColor: '#181e29',
                       color: '#e2e8f0',
+                      border: '1px solid #a855f7',
+                      fontSize: '0.8rem',
+                    }}
+                    onClick={() => {
+                      setIncluirContexto(true);
+                      enviarMensaje(
+                        'Redacta un presupuesto formal y claro listo para entregar al cliente en PDF (con descripción del trabajo, material, precio final y nota de validez de 7 días). IMPORTANTE: NO incluyas costos internos de producción, ni luz, ni desgaste, ni nuestro margen de ganancia.'
+                      );
+                    }}
+                  >
+                    📄 Redactar presupuesto formal listo para PDF
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm text-start"
+                    style={{
+                      backgroundColor: '#181e29',
+                      color: '#e2e8f0',
                       border: '1px solid #2e3647',
                       fontSize: '0.8rem',
                     }}
                     onClick={() => {
                       setIncluirContexto(true);
                       enviarMensaje(
-                        'Redacta un mensaje breve, cordial y profesional para enviarle este presupuesto al cliente por WhatsApp.'
+                        'Redacta un mensaje breve, cordial y profesional para enviarle este presupuesto al cliente por WhatsApp (sin mostrar costos internos ni margen, mencionando validez de 7 días).'
                       );
                     }}
                   >
@@ -338,24 +396,6 @@ function ChatAsistenteIA({
                     }}
                   >
                     🔍 Revisar costos y margen de este trabajo
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-sm text-start"
-                    style={{
-                      backgroundColor: '#181e29',
-                      color: '#e2e8f0',
-                      border: '1px solid #2e3647',
-                      fontSize: '0.8rem',
-                    }}
-                    onClick={() => {
-                      setIncluirContexto(true);
-                      enviarMensaje(
-                        'Dame 3 consejos prácticos de impresión para esta pieza según la impresora, material y tiempo cargados.'
-                      );
-                    }}
-                  >
-                    🖨️ Consejos técnicos para imprimir esta pieza
                   </button>
                 </div>
               </div>
@@ -382,14 +422,34 @@ function ChatAsistenteIA({
                   {m.content}
                 </div>
                 {m.role === 'assistant' && (
-                  <button
-                    type="button"
-                    onClick={() => copiarTexto(m.content, idx)}
-                    className="btn btn-link p-0 mt-1 text-decoration-none"
-                    style={{ fontSize: '0.72rem', color: '#94a3b8' }}
-                  >
-                    {copiadoIdx === idx ? '✅ Copiado' : '📋 Copiar'}
-                  </button>
+                  <div className="d-flex align-items-center gap-3 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => copiarTexto(m.content, idx)}
+                      className="btn btn-link p-0 text-decoration-none"
+                      style={{ fontSize: '0.73rem', color: '#94a3b8' }}
+                    >
+                      {copiadoIdx === idx ? '✅ Copiado' : '📋 Copiar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => descargarOCompartirPdf(m.content, idx, false)}
+                      className="btn btn-link p-0 text-decoration-none"
+                      style={{ fontSize: '0.73rem', color: '#38bdf8' }}
+                    >
+                      {pdfFeedbackIdx === idx ? '✅ PDF listo' : '📄 Descargar PDF'}
+                    </button>
+                    {puedeCompartir && (
+                      <button
+                        type="button"
+                        onClick={() => descargarOCompartirPdf(m.content, `share-${idx}`, true)}
+                        className="btn btn-link p-0 text-decoration-none"
+                        style={{ fontSize: '0.73rem', color: '#c084fc' }}
+                      >
+                        {pdfFeedbackIdx === `share-${idx}` ? '✅ Enviado' : '📤 Compartir'}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
