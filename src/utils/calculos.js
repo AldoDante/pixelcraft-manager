@@ -91,11 +91,11 @@ export const calcularPresupuestoFinal = (datos) => {
   const costoExtras = parseFloat(datos.insumosExternos) || 0;
   const costoManoObra = parseFloat(datos.manoObra) || 0;
 
-  // 5. Costo Base de Producción (Lo que lleva ganancia)
-  const costoBaseConMargen = costoMat + costoEnergia + costoDesgasteYService + costoManoObra;
+  // 5. Costo Base de Producción (Lo que lleva margen de ganancia: material, luz y desgaste)
+  const costoBaseConMargen = costoMat + costoEnergia + costoDesgasteYService;
 
-  // 6. Costo de Producción Total (Incluyendo extras al costo)
-  const costoProduccionTotal = costoBaseConMargen + costoExtras;
+  // 6. Costo de Producción Total (Extras y Mano de Obra se suman al final sin margen encima)
+  const costoProduccionTotal = costoBaseConMargen + costoExtras + costoManoObra;
 
   // 7. Ganancia Neta Libre (ej. 100% = x2, 200% = x3)
   const margen = datos.margenGanancia !== undefined && datos.margenGanancia !== "" 

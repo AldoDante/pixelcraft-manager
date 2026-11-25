@@ -414,6 +414,10 @@ function CalculadoraForm({
                 <span className="text-muted">💡 Extras (LEDs, etc.):</span>
                 <span className="float-end text-warning">{formatoMoneda(ultimoResultado.detalle?.extras)}</span>
               </div>
+              <div className="col-6">
+                <span className="text-muted">🛠️ Mano de Obra (neta):</span>
+                <span className="float-end text-white">{formatoMoneda(ultimoResultado.detalle?.manoObra)}</span>
+              </div>
               <div className="col-12"><hr className="my-1 border-secondary" /></div>
               <div className="col-6">
                 <span className="fw-bold text-muted">Costo Real Producción:</span>

@@ -65,7 +65,7 @@ function ListaProyectos({ proyectos, eliminarProyecto, limpiarTodo, cargarParaEd
                     </div>
 
                     {/* PRECIOS DERECHA (DESGLOSE MATEMÁTICO LIMPIO) */}
-                    <div className="d-flex flex-column align-items-end justify-content-center font-mono" style={{ marginRight: '30px', minWidth: '110px' }}> 
+                    <div className="d-flex flex-column align-items-end justify-content-center font-mono" style={{ marginRight: irAVentas ? '64px' : '34px', minWidth: '105px' }}> 
                       
                       {p.montoDescuento > 0 ? (
                         /* --- VISTA CON DESCUENTO --- */
