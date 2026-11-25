@@ -115,46 +115,46 @@ const dibujarEncabezado = (doc, { logoDataUrl, fechaEmision, fechaVencimiento, c
 
   // Banda superior oscura matching exacto con fondo del logo (#151921 -> RGB 21, 25, 33)
   doc.setFillColor(21, 25, 33);
-  doc.rect(0, 0, pageWidth, 44, 'F');
+  doc.rect(0, 0, pageWidth, 48, 'F');
 
   // Línea de acento cian
   doc.setFillColor(0, 212, 255);
-  doc.rect(0, 44, pageWidth, 1.8, 'F');
+  doc.rect(0, 48, pageWidth, 2, 'F');
 
-  // Logo real más grande a la izquierda (155x51 -> ratio 3.039 -> 72mm x 23.7mm)
+  // Logo real grande y bien visible a la izquierda (126x46 -> ratio 2.739 -> 88mm x 32.1mm)
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', 12, 5.5, 72, 23.7);
+    doc.addImage(logoDataUrl, 'PNG', 14, 4.5, 88, 32.1);
   } else {
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(22);
-    doc.text('PIXELCRAFT 3D', 15, 20);
+    doc.setFontSize(24);
+    doc.text('PIXELCRAFT 3D', 15, 22);
   }
 
   doc.setTextColor(180, 195, 215);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text('Impresión 3D & Manufactura Aditiva · San Salvador de Jujuy', 15, 37);
+  doc.text('Impresión 3D & Manufactura Aditiva · San Salvador de Jujuy', 15, 42.5);
 
   // Datos de presupuesto a la derecha
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('PRESUPUESTO', pageWidth - 15, 13, { align: 'right' });
+  doc.setFontSize(13.5);
+  doc.text('PRESUPUESTO', pageWidth - 15, 14, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(200, 212, 228);
-  doc.text(`Ref: ${codigo}`, pageWidth - 15, 20, { align: 'right' });
-  doc.text(`Fecha: ${fechaEmision}  |  Válido hasta: ${fechaVencimiento}`, pageWidth - 15, 26, {
+  doc.text(`Ref: ${codigo}`, pageWidth - 15, 21.5, { align: 'right' });
+  doc.text(`Fecha: ${fechaEmision}  |  Válido hasta: ${fechaVencimiento}`, pageWidth - 15, 28, {
     align: 'right',
   });
 
   if (nombreEmisor) {
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
-    doc.text(`Emitido por: ${limpiarLineaParaPdf(nombreEmisor)}`, pageWidth - 15, 34, {
+    doc.setFontSize(9);
+    doc.text(`Emitido por: ${limpiarLineaParaPdf(nombreEmisor)}`, pageWidth - 15, 36.5, {
       align: 'right',
     });
   }
@@ -217,7 +217,7 @@ export async function exportarPresupuestoPdf({
   const headerMeta = { logoDataUrl, fechaEmision, fechaVencimiento, codigo, nombreEmisor };
   dibujarEncabezado(doc, headerMeta);
 
-  let y = 52;
+  let y = 56;
 
   // Si no se presionó "Calcular" aún, calcular en vivo desde el formulario cargado para que NUNCA falte el precio
   let resultadoEfectivo = ultimoResultado;
@@ -369,7 +369,7 @@ export async function exportarPresupuestoPdf({
       if (y > maxY) {
         doc.addPage();
         dibujarEncabezado(doc, headerMeta);
-        y = 52;
+        y = 56;
       }
       doc.text(sub, xPos, y);
       y += esTitulo ? 5.6 : 5.1;

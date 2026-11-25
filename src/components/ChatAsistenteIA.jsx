@@ -386,9 +386,13 @@ function ChatAsistenteIA({
                     }}
                     onClick={() => {
                       setIncluirContexto(true);
-                      enviarMensaje(
-                        'Redacta ÚNICAMENTE el texto comercial descriptivo del trabajo para incluir en el cuerpo de nuestro presupuesto PDF oficial (2 párrafos cortos y hasta 4 viñetas con las especificaciones y beneficios para el cliente). REGLAS ESTRICTAS: 1) NO incluyas saludos ni frases introductorias como "Aquí tienes...". 2) NO incluyas encabezados, [LOGOTIPO], fechas, número de presupuesto, tablas Markdown, líneas separadoras (--- o ***), corchetes [] ni teléfonos/redes. 3) NO incluyas NINGUNA sugerencia para el envío, consejo de diseño ni borrador de WhatsApp al final, ya que este texto irá directo al cliente. 4) NO menciones costos internos, luz, desgaste ni margen de ganancia. Empieza directamente con la descripción del trabajo.'
-                      );
+                      const nombreProd = (resultadoEnVivo?.nombre || form?.nombreProyecto || '').trim();
+                      const materialProd = form?.material || 'PLA/PETG';
+                      const extrasProd = (form?.detalleExtras || '').trim();
+                      const promptPdf = nombreProd
+                        ? `Redacta ÚNICAMENTE una descripción comercial específica para el producto "${nombreProd}" (material: ${materialProd}${extrasProd ? `, incluye: ${extrasProd}` : ''}) para incluir en el cuerpo de nuestro presupuesto PDF oficial. Estructura: 1 párrafo introductorio describiendo concretamente "${nombreProd}" y su utilidad práctica, 4 viñetas de ventajas y especificaciones técnicas adaptadas específicamente a "${nombreProd}", y 1 párrafo breve de cierre sobre calidad y terminación. REGLAS ESTRICTAS: 1) Enfócate 100% en "${nombreProd}" (NO uses textos genéricos como "Transformamos tus conceptos" sin describir este producto concreto). 2) NO incluyas saludos ("Aquí tienes..."), encabezados, [LOGOTIPO], fechas, número de presupuesto, tablas Markdown, líneas separadoras (--- o ***), corchetes [] ni teléfonos/redes. 3) NO incluyas sugerencias para el envío ni mensajes de WhatsApp al final. 4) NO menciones costos internos, luz, desgaste ni margen de ganancia.`
+                        : 'Redacta ÚNICAMENTE el texto comercial descriptivo del trabajo para incluir en el cuerpo de nuestro presupuesto PDF oficial (1 párrafo introductorio, 4 viñetas técnicas y 1 párrafo breve de cierre). REGLAS ESTRICTAS: 1) NO incluyas saludos ("Aquí tienes..."), encabezados, [LOGOTIPO], fechas, número de presupuesto, tablas Markdown, líneas separadoras (--- o ***), corchetes [] ni teléfonos/redes. 2) NO incluyas sugerencias para el envío ni mensajes de WhatsApp al final. 3) NO menciones costos internos, luz, desgaste ni margen de ganancia.';
+                      enviarMensaje(promptPdf);
                     }}
                   >
                     📄 Redactar presupuesto formal listo para PDF
