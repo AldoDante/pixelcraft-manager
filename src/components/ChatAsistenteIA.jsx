@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth } from '../firebase';
-import { PERFILES_IMPRESORAS, redondearPrecioCliente } from '../utils/calculos';
+import { PERFILES_IMPRESORAS, calcularPresupuestoFinal, redondearPrecioCliente } from '../utils/calculos';
 import { exportarPresupuestoPdf, soportaCompartirPdf } from '../utils/pdfPresupuesto';
 
 const formatoARS = (valor) => {
@@ -8,6 +8,24 @@ const formatoARS = (valor) => {
   if (!Number.isFinite(num)) return '$0';
   return `$${Math.round(num).toLocaleString('es-AR')}`;
 };
+
+function obtenerResultadoEnVivo({ form, ultimoResultado, config }) {
+  if (form && (Number(form.pesoTotal) > 0 || Number(form.tiempoHoras) > 0 || Number(form.insumosExternos) > 0 || Number(form.manoObra) > 0)) {
+    const tiempoDecimal = (parseFloat(form.tiempoHoras) || 0) + ((parseFloat(form.tiempoMinutos) || 0) / 60);
+    const impConfig = config?.impresoras?.[form.impresoraId] || {};
+    return calcularPresupuestoFinal({
+      ...form,
+      tiempoTotal: tiempoDecimal,
+      costoKWh: config?.kwh,
+      margenGanancia:
+        form.margenGanancia !== '' && form.margenGanancia !== undefined ? form.margenGanancia : config?.margen,
+      valorMaquina: impConfig.valorMaquina,
+      vidaUtilHoras: impConfig.vidaUtilHoras,
+      costoService500h: impConfig.costoService500h,
+    });
+  }
+  return ultimoResultado || null;
+}
 
 function construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas, nombreEmisor }) {
   const impresora = PERFILES_IMPRESORAS[form?.impresoraId];
@@ -92,6 +110,8 @@ function ChatAsistenteIA({
     }
   }, [mensajes, cargando, abierto]);
 
+  const resultadoEnVivo = obtenerResultadoEnVivo({ form, ultimoResultado, config });
+
   const enviarMensaje = async (textoOpcional) => {
     const texto = (textoOpcional !== undefined ? textoOpcional : input).trim();
     if (!texto || cargando) return;
@@ -110,7 +130,7 @@ function ChatAsistenteIA({
 
       const idToken = await currentUser.getIdToken();
       const calculatorContext = incluirContexto
-        ? construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas, nombreEmisor })
+        ? construirContextoCalculadora({ form, ultimoResultado: resultadoEnVivo, config, proyectos, ventas, nombreEmisor })
         : null;
 
       const res = await fetch('/api/chat', {
@@ -158,8 +178,9 @@ function ChatAsistenteIA({
       const res = await exportarPresupuestoPdf({
         contenidoIA,
         form,
-        ultimoResultado,
-        incluirDatosCalculadora: incluirContexto && Boolean(ultimoResultado),
+        ultimoResultado: resultadoEnVivo,
+        config,
+        incluirDatosCalculadora: incluirContexto && Boolean(resultadoEnVivo),
         nombreEmisor,
         compartir,
       });
@@ -173,8 +194,8 @@ function ChatAsistenteIA({
     }
   };
 
-  const resumenChip = ultimoResultado
-    ? `${ultimoResultado.nombre} · ${formatoARS(ultimoResultado.precioVenta)}`
+  const resumenChip = resultadoEnVivo
+    ? `${resultadoEnVivo.nombre} · ${formatoARS(redondearPrecioCliente(resultadoEnVivo.precioVenta))}`
     : form?.nombreProyecto
       ? `${form.nombreProyecto} (sin calcular)`
       : 'Formulario actual';
@@ -324,7 +345,7 @@ function ChatAsistenteIA({
                 >
                   {resumenChip}
                 </span>
-                {ultimoResultado && (
+                {resultadoEnVivo && (
                   <button
                     type="button"
                     title="Exportar presupuesto actual directo a PDF"

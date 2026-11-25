@@ -154,7 +154,7 @@ function AdminPanel() {
     setCalculoFinalizado(false);
     const horasTotales = proyecto.tiempoTotal || proyecto.horas || 0;
 
-    setForm({
+    const formCargado = {
       clienteNombre: proyecto.clienteNombre || "",
       clienteDireccion: proyecto.clienteDireccion || "",
       mediosPago: Array.isArray(proyecto.mediosPago) ? proyecto.mediosPago : [...MEDIOS_PAGO_DEFECTO],
@@ -175,7 +175,21 @@ function AdminPanel() {
       descripcion: proyecto.descripcion || "",
       imagenUrl: proyecto.imagenUrl || "",
       tiempoEspera: proyecto.tiempoEspera || ""
+    };
+    setForm(formCargado);
+
+    const impConfig = config.impresoras?.[formCargado.impresoraId] || {};
+    const resultadoCargado = calcularPresupuestoFinal({
+      ...formCargado,
+      tiempoTotal: horasTotales,
+      costoKWh: config.kwh,
+      margenGanancia: formCargado.margenGanancia,
+      precioFilamento: formCargado.precioFilamento,
+      valorMaquina: impConfig.valorMaquina,
+      vidaUtilHoras: impConfig.vidaUtilHoras,
+      costoService500h: impConfig.costoService500h
     });
+    setUltimoResultado(resultadoCargado);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

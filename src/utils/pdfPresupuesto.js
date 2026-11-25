@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import pixelcraftLogoUrl from '../assets/pixelcraft-logo.png';
-import { redondearPrecioCliente } from './calculos';
+import { calcularPresupuestoFinal, redondearPrecioCliente } from './calculos';
 
 const formatoARS = (valor) => {
   const num = Number(valor);
@@ -115,46 +115,46 @@ const dibujarEncabezado = (doc, { logoDataUrl, fechaEmision, fechaVencimiento, c
 
   // Banda superior oscura matching exacto con fondo del logo (#151921 -> RGB 21, 25, 33)
   doc.setFillColor(21, 25, 33);
-  doc.rect(0, 0, pageWidth, 38, 'F');
+  doc.rect(0, 0, pageWidth, 44, 'F');
 
   // Línea de acento cian
   doc.setFillColor(0, 212, 255);
-  doc.rect(0, 38, pageWidth, 1.5, 'F');
+  doc.rect(0, 44, pageWidth, 1.8, 'F');
 
-  // Logo real a la izquierda (155x51 -> ratio 3.039 -> 48mm x 15.8mm)
+  // Logo real más grande a la izquierda (155x51 -> ratio 3.039 -> 72mm x 23.7mm)
   if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', 14, 7.5, 48, 15.8);
+    doc.addImage(logoDataUrl, 'PNG', 12, 5.5, 72, 23.7);
   } else {
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('PIXELCRAFT 3D', 15, 17);
+    doc.setFontSize(22);
+    doc.text('PIXELCRAFT 3D', 15, 20);
   }
 
   doc.setTextColor(180, 195, 215);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text('Impresión 3D & Manufactura Aditiva · San Salvador de Jujuy', 15, 30.5);
+  doc.text('Impresión 3D & Manufactura Aditiva · San Salvador de Jujuy', 15, 37);
 
   // Datos de presupuesto a la derecha
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text('PRESUPUESTO', pageWidth - 15, 11.5, { align: 'right' });
+  doc.setFontSize(13);
+  doc.text('PRESUPUESTO', pageWidth - 15, 13, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.3);
+  doc.setFontSize(8.5);
   doc.setTextColor(200, 212, 228);
-  doc.text(`Ref: ${codigo}`, pageWidth - 15, 17.5, { align: 'right' });
-  doc.text(`Fecha: ${fechaEmision}  |  Válido hasta: ${fechaVencimiento}`, pageWidth - 15, 23, {
+  doc.text(`Ref: ${codigo}`, pageWidth - 15, 20, { align: 'right' });
+  doc.text(`Fecha: ${fechaEmision}  |  Válido hasta: ${fechaVencimiento}`, pageWidth - 15, 26, {
     align: 'right',
   });
 
   if (nombreEmisor) {
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.3);
-    doc.text(`Emitido por: ${limpiarLineaParaPdf(nombreEmisor)}`, pageWidth - 15, 29.5, {
+    doc.setFontSize(8.8);
+    doc.text(`Emitido por: ${limpiarLineaParaPdf(nombreEmisor)}`, pageWidth - 15, 34, {
       align: 'right',
     });
   }
@@ -193,6 +193,7 @@ export async function exportarPresupuestoPdf({
   contenidoIA = '',
   form = null,
   ultimoResultado = null,
+  config = null,
   incluirDatosCalculadora = false,
   nombreEmisor = '',
   compartir = false,
@@ -216,7 +217,23 @@ export async function exportarPresupuestoPdf({
   const headerMeta = { logoDataUrl, fechaEmision, fechaVencimiento, codigo, nombreEmisor };
   dibujarEncabezado(doc, headerMeta);
 
-  let y = 46;
+  let y = 52;
+
+  // Si no se presionó "Calcular" aún, calcular en vivo desde el formulario cargado para que NUNCA falte el precio
+  let resultadoEfectivo = ultimoResultado;
+  if (!resultadoEfectivo && form && (Number(form.pesoTotal) > 0 || Number(form.tiempoHoras) > 0 || Number(form.insumosExternos) > 0 || Number(form.manoObra) > 0)) {
+    const tiempoDecimal = (parseFloat(form.tiempoHoras) || 0) + ((parseFloat(form.tiempoMinutos) || 0) / 60);
+    const impConfig = config?.impresoras?.[form.impresoraId] || {};
+    resultadoEfectivo = calcularPresupuestoFinal({
+      ...form,
+      tiempoTotal: tiempoDecimal,
+      costoKWh: config?.kwh,
+      margenGanancia: form.margenGanancia !== '' && form.margenGanancia !== undefined ? form.margenGanancia : config?.margen,
+      valorMaquina: impConfig.valorMaquina,
+      vidaUtilHoras: impConfig.vidaUtilHoras,
+      costoService500h: impConfig.costoService500h,
+    });
+  }
 
   // Bloque 1: Datos del cliente y medios de pago (si están cargados)
   const clienteNombre = limpiarLineaParaPdf(form?.clienteNombre || '');
@@ -254,19 +271,19 @@ export async function exportarPresupuestoPdf({
   }
 
   // Bloque 2: Resumen del trabajo + Precio Final (solo datos aptos para el cliente, sin costos ni margen)
-  if (incluirDatosCalculadora && ultimoResultado) {
+  if (incluirDatosCalculadora && resultadoEfectivo) {
     const nombreTrabajo = limpiarLineaParaPdf(
-      ultimoResultado.nombre || form?.nombreProyecto || 'Impresión 3D a medida'
+      resultadoEfectivo.nombre || form?.nombreProyecto || 'Impresión 3D a medida'
     );
     const material = limpiarLineaParaPdf(form?.material || 'PLA/PETG');
     const plazo = limpiarLineaParaPdf(form?.tiempoEspera || '');
-    const extrasNota = limpiarLineaParaPdf(ultimoResultado.detalle?.notaExtras || form?.detalleExtras || '');
+    const extrasNota = limpiarLineaParaPdf(resultadoEfectivo.detalle?.notaExtras || form?.detalleExtras || '');
 
     const lineasInfo = [`Proyecto: ${nombreTrabajo}`, `Material: ${material}`];
     if (plazo) lineasInfo.push(`Plazo estimado: ${plazo}`);
     if (extrasNota) lineasInfo.push(`Incluye: ${extrasNota.slice(0, 62)}`);
 
-    const boxHeight = Math.max(26, 12 + lineasInfo.length * 5.8);
+    const boxHeight = Math.max(28, 13 + lineasInfo.length * 5.8);
 
     doc.setFillColor(244, 248, 252);
     doc.setDrawColor(0, 180, 220);
@@ -288,8 +305,8 @@ export async function exportarPresupuestoPdf({
     }
 
     // Caja de precio final a la derecha
-    const priceBoxW = 54;
-    const priceBoxH = 20;
+    const priceBoxW = 58;
+    const priceBoxH = 22;
     const priceBoxX = marginX + maxWidth - priceBoxW - 4;
     const priceBoxY = y + (boxHeight - priceBoxH) / 2;
     doc.setFillColor(21, 25, 33);
@@ -298,13 +315,13 @@ export async function exportarPresupuestoPdf({
     doc.setTextColor(148, 163, 184);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.text('TOTAL FINAL', priceBoxX + priceBoxW / 2, priceBoxY + 6.2, { align: 'center' });
+    doc.text('TOTAL FINAL', priceBoxX + priceBoxW / 2, priceBoxY + 6.5, { align: 'center' });
 
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    const precioClienteRedondeado = redondearPrecioCliente(ultimoResultado.precioVenta);
-    doc.text(formatoARS(precioClienteRedondeado), priceBoxX + priceBoxW / 2, priceBoxY + 14.5, {
+    doc.setFontSize(15.5);
+    const precioClienteRedondeado = redondearPrecioCliente(resultadoEfectivo.precioVenta);
+    doc.text(formatoARS(precioClienteRedondeado), priceBoxX + priceBoxW / 2, priceBoxY + 15.8, {
       align: 'center',
     });
 
@@ -352,7 +369,7 @@ export async function exportarPresupuestoPdf({
       if (y > maxY) {
         doc.addPage();
         dibujarEncabezado(doc, headerMeta);
-        y = 46;
+        y = 52;
       }
       doc.text(sub, xPos, y);
       y += esTitulo ? 5.6 : 5.1;
@@ -364,7 +381,7 @@ export async function exportarPresupuestoPdf({
   dibujarPiesDePagina(doc);
 
   const nombreBase = sanitizarNombreArchivo(
-    clienteNombre || ultimoResultado?.nombre || form?.nombreProyecto || 'Presupuesto'
+    clienteNombre || resultadoEfectivo?.nombre || form?.nombreProyecto || 'Presupuesto'
   );
   const fechaArchivo = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(
     hoy.getDate()
@@ -378,7 +395,7 @@ export async function exportarPresupuestoPdf({
       if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `Presupuesto PixelCraft 3D - ${ultimoResultado?.nombre || 'Cotización'}`,
+          title: `Presupuesto PixelCraft 3D - ${resultadoEfectivo?.nombre || 'Cotización'}`,
           text: 'Adjunto el presupuesto solicitado (validez: 7 días).',
         });
         return { nombreArchivo, compartido: true };
