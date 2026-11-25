@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import pixelcraftLogoUrl from '../assets/pixelcraft-logo.png';
+import { redondearPrecioCliente } from './calculos';
 
 const formatoARS = (valor) => {
   const num = Number(valor);
@@ -302,7 +303,8 @@ export async function exportarPresupuestoPdf({
     doc.setTextColor(0, 212, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.text(formatoARS(ultimoResultado.precioVenta), priceBoxX + priceBoxW / 2, priceBoxY + 14.5, {
+    const precioClienteRedondeado = redondearPrecioCliente(ultimoResultado.precioVenta);
+    doc.text(formatoARS(precioClienteRedondeado), priceBoxX + priceBoxW / 2, priceBoxY + 14.5, {
       align: 'center',
     });
 

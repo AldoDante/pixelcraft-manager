@@ -44,7 +44,8 @@ function buildSystemPrompt(calculatorContext) {
     base.push(
       '\nEl usuario eligió compartir el contexto actual de su calculadora de presupuestos 3D:',
       calculatorContext,
-      '\nUsa estos datos exactos si la pregunta se refiere al presupuesto, costos, márgenes o redacción de mensajes para clientes (por ejemplo WhatsApp). Si pregunta sobre otro tema no relacionado, responde con normalidad sin forzar estos números.'
+      '\nUsa estos datos exactos si la pregunta se refiere al presupuesto, costos, márgenes o redacción de mensajes para clientes (por ejemplo WhatsApp o PDF).',
+      'REGLA DE PRECIO AL CLIENTE: Siempre que cotices o menciones el precio final para un cliente (en presupuestos, PDF o WhatsApp), usa el PRECIO FINAL PARA EL CLIENTE redondeado hacia arriba al múltiplo de $100 más cercano (por ejemplo, si el cálculo interno da $5.177, informa $5.200; si te piden calcular otra cantidad o descuento, también redondea el total final hacia arriba a la centena siguiente). Si pregunta sobre otro tema no relacionado, responde con normalidad sin forzar estos números.'
     );
   }
 

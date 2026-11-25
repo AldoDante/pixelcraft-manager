@@ -52,6 +52,13 @@ export const VALORES_DEFECTO = {
   margenGanancia: 100   // 100% sugerido (libre)
 };
 
+// Redondea el precio final para el cliente hacia arriba al múltiplo de $100 (ej: 5177 -> 5200)
+export const redondearPrecioCliente = (valor) => {
+  const num = Number(valor);
+  if (!Number.isFinite(num) || num <= 0) return 0;
+  return Math.ceil(num / 100) * 100;
+};
+
 export const calcularPresupuestoFinal = (datos) => {
   // 0. Obtener perfil de la impresora seleccionada
   const impresora = PERFILES_IMPRESORAS[datos.impresoraId] || PERFILES_IMPRESORAS["kobra-combo"];

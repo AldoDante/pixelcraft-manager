@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth } from '../firebase';
-import { PERFILES_IMPRESORAS } from '../utils/calculos';
+import { PERFILES_IMPRESORAS, redondearPrecioCliente } from '../utils/calculos';
 import { exportarPresupuestoPdf, soportaCompartirPdf } from '../utils/pdfPresupuesto';
 
 const formatoARS = (valor) => {
@@ -38,18 +38,20 @@ function construirContextoCalculadora({ form, ultimoResultado, config, proyectos
   ];
 
   if (ultimoResultado) {
+    const precioClienteRedondeado = redondearPrecioCliente(ultimoResultado.precioVenta);
     lineas.push(
       '',
       '=== ÚLTIMO PRESUPUESTO CALCULADO ===',
-      `Costo total de producción: ${formatoARS(ultimoResultado.costoProduccion)}`,
+      `Costo total de producción (interno): ${formatoARS(ultimoResultado.costoProduccion)}`,
       `  - Material (incl. 10% desperdicio): ${formatoARS(ultimoResultado.detalle?.material)}`,
       `  - Electricidad (${Number(ultimoResultado.detalle?.kwhConsumidos || 0).toFixed(2)} kWh): ${formatoARS(ultimoResultado.detalle?.luz)}`,
       `  - Amortización + service: ${formatoARS(ultimoResultado.detalle?.desgasteYService)}`,
-      `  - Mano de obra: ${formatoARS(ultimoResultado.detalle?.manoObra)}`,
+      `  - Mano de obra (neta): ${formatoARS(ultimoResultado.detalle?.manoObra)}`,
       `  - Extras al costo: ${formatoARS(ultimoResultado.detalle?.extras)}`,
-      `Precio de venta base (antes de descuento): ${formatoARS(ultimoResultado.precioOriginal)}`,
+      `Precio de venta base interno (antes de descuento): ${formatoARS(ultimoResultado.precioOriginal)}`,
       `Descuento: -${formatoARS(ultimoResultado.montoDescuento)}`,
-      `PRECIO FINAL AL CLIENTE: ${formatoARS(ultimoResultado.precioVenta)}`
+      `Precio exacto interno (calculadora): ${formatoARS(ultimoResultado.precioVenta)}`,
+      `PRECIO FINAL PARA EL CLIENTE (redondeado hacia arriba a centena): ${formatoARS(precioClienteRedondeado)}`
     );
   } else {
     lineas.push('', '(Todavía no se presionó el botón Calcular para este formulario.)');
