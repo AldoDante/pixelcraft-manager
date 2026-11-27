@@ -1,12 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { calcularPresupuestoFinal } from '../utils/calculos';
+import { construirItemCatalogoPublico } from '../utils/catalogoPublico';
 import ListaProyectos from '../components/ListaProyectos';
 import ModuloVentas from '../components/ModuloVentas';
 import AjustesGlobales from '../components/AjustesGlobales';
 import CalculadoraForm from '../components/CalculadoraForm';
 import ChatAsistenteIA from '../components/ChatAsistenteIA';
 import { db, auth } from '../firebase';
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, updateDoc, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  orderBy,
+  updateDoc,
+  setDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Link } from 'react-router-dom';
 
@@ -72,9 +85,11 @@ function AdminPanel() {
     sessionStorage.removeItem('pixelcraft_admin_logged');
   };
 
-  // === CONTROL DE PESTAÑAS (TABS) Y CHAT IA ===
+  // === CONTROL DE PESTAÑAS (TABS), VENTA RÁPIDA Y CHAT IA ===
   const [tabActiva, setTabActiva] = useState('calculadora');
+  const [ventaInicial, setVentaInicial] = useState(null);
   const [chatAbierto, setChatAbierto] = useState(false);
+  const catalogoMigradoRef = useRef(false);
 
   // === ESTADOS DE CONFIGURACIÓN GLOBAL ===
   const [config, setConfig] = useState({
@@ -91,6 +106,8 @@ function AdminPanel() {
 
   // === FORMULARIO DE COTIZACIÓN ===
   const [form, setForm] = useState({
+    tipoProyecto: "impresion_3d",
+    datosCarteleria: null,
     clienteNombre: "",
     clienteDireccion: "",
     mediosPago: [...MEDIOS_PAGO_DEFECTO],
@@ -135,6 +152,35 @@ function AdminPanel() {
     return () => { unsubProyectos(); unsubVentas(); unsubConfig(); };
   }, [isLogged]);
 
+  // Migración automática única: sincroniza hacia `catalogo_publico` cualquier proyecto ya publicado
+  useEffect(() => {
+    if (!isLogged || catalogoMigradoRef.current || proyectos.length === 0) return;
+    const publicados = proyectos.filter((p) => p.publicarCatalogo);
+    if (publicados.length === 0) return;
+
+    catalogoMigradoRef.current = true;
+    (async () => {
+      try {
+        const snapPublico = await getDocs(collection(db, "catalogo_publico"));
+        const idsExistentes = new Set(snapPublico.docs.map((d) => d.id));
+        const faltantes = publicados.filter((p) => !idsExistentes.has(p.firestoreId));
+        if (faltantes.length === 0) return;
+
+        const batch = writeBatch(db);
+        faltantes.forEach((p) => {
+          batch.set(
+            doc(db, "catalogo_publico", p.firestoreId),
+            construirItemCatalogoPublico(p.firestoreId, p)
+          );
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error("Error sincronizando catálogo público:", error);
+        catalogoMigradoRef.current = false;
+      }
+    })();
+  }, [isLogged, proyectos]);
+
   const guardarAjustesGlobales = async () => {
     try {
       await setDoc(doc(db, "configuracion", "global"), {
@@ -155,6 +201,8 @@ function AdminPanel() {
     const horasTotales = proyecto.tiempoTotal || proyecto.horas || 0;
 
     const formCargado = {
+      tipoProyecto: proyecto.tipoProyecto || "impresion_3d",
+      datosCarteleria: proyecto.datosCarteleria || null,
       clienteNombre: proyecto.clienteNombre || "",
       clienteDireccion: proyecto.clienteDireccion || "",
       mediosPago: Array.isArray(proyecto.mediosPago) ? proyecto.mediosPago : [...MEDIOS_PAGO_DEFECTO],
@@ -197,6 +245,8 @@ function AdminPanel() {
     setEditandoId(null);
     setCalculoFinalizado(false);
     setForm({
+      tipoProyecto: "impresion_3d",
+      datosCarteleria: null,
       clienteNombre: "",
       clienteDireccion: "",
       mediosPago: [...MEDIOS_PAGO_DEFECTO],
@@ -227,6 +277,8 @@ function AdminPanel() {
     setEditandoId(null);
     setForm(prev => ({
       ...prev,
+      tipoProyecto: "impresion_3d",
+      datosCarteleria: null,
       clienteNombre: "",
       clienteDireccion: "",
       nombreProyecto: "",
@@ -242,6 +294,15 @@ function AdminPanel() {
       imagenUrl: "",
       tiempoEspera: ""
     }));
+  };
+
+  const sincronizarCatalogoPublico = async (calculoId, datos) => {
+    const refPublico = doc(db, "catalogo_publico", calculoId);
+    if (datos.publicarCatalogo) {
+      await setDoc(refPublico, construirItemCatalogoPublico(calculoId, datos));
+    } else {
+      await deleteDoc(refPublico).catch(() => {});
+    }
   };
 
   const handleCalcular = async (e) => {
@@ -267,6 +328,8 @@ function AdminPanel() {
     });
 
     const datosAGuardar = {
+      tipoProyecto: form.tipoProyecto || "impresion_3d",
+      datosCarteleria: form.datosCarteleria || null,
       clienteNombre: form.clienteNombre || "",
       clienteDireccion: form.clienteDireccion || "",
       mediosPago: Array.isArray(form.mediosPago) ? form.mediosPago : [],
@@ -298,13 +361,14 @@ function AdminPanel() {
 
     try {
       if (editandoId) {
-        await updateDoc(doc(db, "calculos", editandoId), datosAGuardar);
-        setEditandoId(null);
-        setCalculoFinalizado(false);
+        const idActual = editandoId;
+        await updateDoc(doc(db, "calculos", idActual), datosAGuardar);
+        await sincronizarCatalogoPublico(idActual, datosAGuardar);
         cancelarEdicion();
       } else {
         datosAGuardar.id = Date.now();
-        await addDoc(collection(db, "calculos"), datosAGuardar);
+        const docRef = await addDoc(collection(db, "calculos"), datosAGuardar);
+        await sincronizarCatalogoPublico(docRef.id, datosAGuardar);
         setCalculoFinalizado(true);
       }
       setUltimoResultado(datosAGuardar);
@@ -316,16 +380,42 @@ function AdminPanel() {
 
   const eliminarProyecto = async (idFirestore) => {
     if (confirm("¿Borrar este proyecto?")) {
-      await deleteDoc(doc(db, "calculos", idFirestore));
-      if (editandoId === idFirestore) cancelarEdicion();
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "calculos", idFirestore));
+        batch.delete(doc(db, "catalogo_publico", idFirestore));
+        await batch.commit();
+        if (editandoId === idFirestore) cancelarEdicion();
+      } catch (error) {
+        console.error("Error al eliminar proyecto:", error);
+        alert("No se pudo eliminar el proyecto.");
+      }
     }
   };
 
   const limpiarTodo = async () => {
-    if (confirm("⚠️ ¿ESTÁS SEGURO? Esto borrará todo el historial.")) {
-      proyectos.forEach(async (p) => await deleteDoc(doc(db, "calculos", p.firestoreId)));
-      cancelarEdicion();
+    if (confirm("⚠️ ¿ESTÁS SEGURO? Esto borrará todo el historial y los productos publicados en el catálogo.")) {
+      try {
+        // Firestore permite hasta 500 operaciones por batch (2 ops por proyecto -> bloques de 200)
+        for (let i = 0; i < proyectos.length; i += 200) {
+          const batch = writeBatch(db);
+          proyectos.slice(i, i + 200).forEach((p) => {
+            batch.delete(doc(db, "calculos", p.firestoreId));
+            batch.delete(doc(db, "catalogo_publico", p.firestoreId));
+          });
+          await batch.commit();
+        }
+        cancelarEdicion();
+      } catch (error) {
+        console.error("Error limpiando historial:", error);
+        alert("No se pudo borrar el historial completo.");
+      }
     }
+  };
+
+  const abrirVentaParaProyecto = (proyecto) => {
+    setVentaInicial({ proyecto, nonce: Date.now() });
+    setTabActiva('ventas');
   };
 
   if (authLoading) {
@@ -504,7 +594,6 @@ function AdminPanel() {
                 iniciarNuevoCalculo={iniciarNuevoCalculo}
                 cancelarEdicion={cancelarEdicion}
                 ultimoResultado={ultimoResultado}
-                config={config}
               />
             </div>
 
@@ -515,12 +604,18 @@ function AdminPanel() {
                 eliminarProyecto={eliminarProyecto} 
                 limpiarTodo={limpiarTodo} 
                 cargarParaEditar={cargarParaEditar}
-                irAVentas={() => setTabActiva('ventas')}
+                irAVentas={abrirVentaParaProyecto}
               />
             </div>
           </div>
         ) : (
-          <ModuloVentas ventas={ventas} proyectos={proyectos} />
+          <ModuloVentas
+            key={ventaInicial ? ventaInicial.nonce : 'ventas-default'}
+            ventas={ventas}
+            proyectos={proyectos}
+            proyectoInicial={ventaInicial?.proyecto || null}
+            onCerrarModalInicial={() => setVentaInicial(null)}
+          />
         )}
       </div>
 

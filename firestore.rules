@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function esSocio() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email in [
+          'dante.acuario79@gmail.com',
+          'japodeck@gmail.com'
+        ];
+    }
+
+    // Catálogo visible para clientes (solo campos comerciales, sin costos internos ni clientes)
+    match /catalogo_publico/{productoId} {
+      allow read: if true;
+      allow write: if esSocio();
+    }
+
+    // Colecciones privadas exclusivas de los socios
+    match /calculos/{calculoId} {
+      allow read, write: if esSocio();
+    }
+
+    match /ventas/{ventaId} {
+      allow read, write: if esSocio();
+    }
+
+    match /configuracion/{configId} {
+      allow read, write: if esSocio();
+    }
+
+    // Reservada para futuros diseños del módulo de Cartelería LED 3D
+    match /disenos_carteleria/{disenoId} {
+      allow read, write: if esSocio();
+    }
+
+    // Bloqueo por defecto para cualquier otra ruta
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

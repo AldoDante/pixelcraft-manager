@@ -1,4 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState } from 'react';
+import { obtenerPrecioPublico } from '../utils/catalogoPublico';
 
 export const CartContext = createContext();
 
@@ -31,9 +33,9 @@ export const CartProvider = ({ children }) => {
     setCarrito([]);
   };
 
-  // Calculamos el total de plata (usando precioOriginal como base para el catálogo)
+  // Calculamos el total usando el precio público redondeado
   const totalCarrito = carrito.reduce(
-    (total, item) => total + (parseFloat(item.precioOriginal || 0) * item.cantidad),
+    (total, item) => total + (obtenerPrecioPublico(item) * item.cantidad),
     0
   );
 

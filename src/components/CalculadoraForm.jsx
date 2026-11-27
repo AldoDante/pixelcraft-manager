@@ -15,8 +15,7 @@ function CalculadoraForm({
   calculoFinalizado,
   iniciarNuevoCalculo,
   cancelarEdicion,
-  ultimoResultado,
-  config
+  ultimoResultado
 }) {
   const formatoMoneda = (val) => (val || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 
@@ -320,7 +319,7 @@ function CalculadoraForm({
                     <input 
                       type="text" 
                       className="form-control form-control-sm bg-dark text-white border-secondary" 
-                      placeholder="URL de la Foto (pronto subida directa con Supabase)" 
+                      placeholder="URL de la foto del producto" 
                       value={form.imagenUrl} 
                       onChange={e => setForm({ ...form, imagenUrl: e.target.value })} 
                       disabled={calculoFinalizado} 

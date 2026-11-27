@@ -1,18 +1,51 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
 import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { redondearPrecioCliente } from '../utils/calculos';
 
-function ModuloVentas({ ventas, proyectos }) {
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [ventaForm, setVentaForm] = useState({
-    proyectoSeleccionado: '',
-    nombreCliente: '',
+const crearEstadoInicialVenta = (proyectoInicial) => {
+  if (!proyectoInicial) {
+    return {
+      proyectoSeleccionado: '',
+      nombreCliente: '',
+      cantidad: 1,
+      precioVentaManual: '',
+      metodoPago: 'Transferencia',
+    };
+  }
+
+  const precioSugerido = redondearPrecioCliente(proyectoInicial.precioVenta);
+  return {
+    proyectoSeleccionado: proyectoInicial.firestoreId || '',
+    nombreCliente: proyectoInicial.clienteNombre || '',
     cantidad: 1,
-    precioVentaManual: '',
-    metodoPago: 'Transferencia'
-  });
+    precioVentaManual: precioSugerido > 0 ? String(precioSugerido) : '',
+    metodoPago: 'Transferencia',
+  };
+};
+
+function ModuloVentas({ ventas, proyectos, proyectoInicial = null, onCerrarModalInicial }) {
+  const [modalAbierto, setModalAbierto] = useState(Boolean(proyectoInicial));
+  const [ventaForm, setVentaForm] = useState(() => crearEstadoInicialVenta(proyectoInicial));
 
   const formatoMoneda = (val) => (val || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+
+  const cerrarModal = () => {
+    setModalAbierto(false);
+    setVentaForm(crearEstadoInicialVenta(null));
+    onCerrarModalInicial?.();
+  };
+
+  const handleSeleccionarProyecto = (firestoreId) => {
+    const proyecto = proyectos.find((p) => p.firestoreId === firestoreId);
+    const precioSugerido = proyecto ? redondearPrecioCliente(proyecto.precioVenta) : 0;
+    setVentaForm((prev) => ({
+      ...prev,
+      proyectoSeleccionado: firestoreId,
+      nombreCliente: prev.nombreCliente || proyecto?.clienteNombre || '',
+      precioVentaManual: precioSugerido > 0 ? String(precioSugerido) : '',
+    }));
+  };
 
   // Cálculos acumulados globales según la regla: 30% Caja PixelCraft, 35% Socio 1, 35% Socio 2
   const totalFacturado = ventas.reduce((acc, v) => acc + (parseFloat(v.precioTotal) || 0), 0);
@@ -25,8 +58,14 @@ function ModuloVentas({ ventas, proyectos }) {
     e.preventDefault();
     const proyecto = proyectos.find(p => p.firestoreId === ventaForm.proyectoSeleccionado);
 
-    const cantidad = parseInt(ventaForm.cantidad) || 1;
-    const precioUnitario = proyecto ? proyecto.precioVenta : (parseFloat(ventaForm.precioVentaManual) || 0);
+    const cantidad = parseInt(ventaForm.cantidad, 10) || 1;
+    const precioManual = parseFloat(ventaForm.precioVentaManual);
+    const precioUnitario =
+      Number.isFinite(precioManual) && precioManual > 0
+        ? precioManual
+        : proyecto
+          ? redondearPrecioCliente(proyecto.precioVenta)
+          : 0;
 
     const precioTotal = precioUnitario * cantidad;
     const cajaPixelCraft = precioTotal * 0.30; // 30% para la caja del taller
@@ -36,10 +75,13 @@ function ModuloVentas({ ventas, proyectos }) {
     const nuevaVenta = {
       id: Date.now(),
       fecha: new Date().toLocaleDateString('es-AR'),
+      proyectoId: proyecto?.firestoreId || null,
+      tipoProyecto: proyecto?.tipoProyecto || 'impresion_3d',
       productoNombre: proyecto ? proyecto.nombre : "Venta Personalizada",
       impresoraNombre: proyecto?.impresoraNombre || "3D",
       cliente: ventaForm.nombreCliente || "Cliente General",
       cantidad,
+      precioUnitario,
       precioTotal,
       cajaPixelCraft,
       socioA,
@@ -49,14 +91,7 @@ function ModuloVentas({ ventas, proyectos }) {
 
     try {
       await addDoc(collection(db, "ventas"), nuevaVenta);
-      setModalAbierto(false);
-      setVentaForm({
-        proyectoSeleccionado: '',
-        nombreCliente: '',
-        cantidad: 1,
-        precioVentaManual: '',
-        metodoPago: 'Transferencia'
-      });
+      cerrarModal();
     } catch (err) {
       console.error("Error guardando venta:", err);
       alert("Error al registrar la venta.");
@@ -203,7 +238,7 @@ function ModuloVentas({ ventas, proyectos }) {
                 <h6 className="modal-title fw-bold" style={{ color: '#00d4ff', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
                   REGISTRAR NUEVA VENTA
                 </h6>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setModalAbierto(false)}></button>
+                <button type="button" className="btn-close btn-close-white" onClick={cerrarModal}></button>
               </div>
 
               <form onSubmit={handleGuardarVenta}>
@@ -213,20 +248,20 @@ function ModuloVentas({ ventas, proyectos }) {
                     <select
                       className="form-select bg-dark text-white border-secondary"
                       value={ventaForm.proyectoSeleccionado}
-                      onChange={(e) => setVentaForm({ ...ventaForm, proyectoSeleccionado: e.target.value })}
+                      onChange={(e) => handleSeleccionarProyecto(e.target.value)}
                       required
                     >
                       <option value="">-- Seleccionar de los proyectos guardados --</option>
                       {proyectos.map((p) => (
                         <option key={p.firestoreId} value={p.firestoreId}>
-                          {p.nombre} (Cobro: {formatoMoneda(p.precioVenta)})
+                          {p.nombre} (Cobro sugerido: {formatoMoneda(redondearPrecioCliente(p.precioVenta))})
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div className="row g-2 mb-3">
-                    <div className="col-8">
+                    <div className="col-6">
                       <label className="small text-white mb-1">Cliente / Destinatario</label>
                       <input
                         type="text"
@@ -236,14 +271,27 @@ function ModuloVentas({ ventas, proyectos }) {
                         onChange={(e) => setVentaForm({ ...ventaForm, nombreCliente: e.target.value })}
                       />
                     </div>
-                    <div className="col-4">
-                      <label className="small text-white mb-1">Cantidad</label>
+                    <div className="col-2">
+                      <label className="small text-white mb-1">Cant.</label>
                       <input
                         type="number"
                         min="1"
                         className="form-control bg-dark text-white border-secondary"
                         value={ventaForm.cantidad}
                         onChange={(e) => setVentaForm({ ...ventaForm, cantidad: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="col-4">
+                      <label className="small text-white mb-1">Precio un. ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="form-control bg-dark text-info border-secondary fw-bold"
+                        placeholder="Cobrado"
+                        value={ventaForm.precioVentaManual}
+                        onChange={(e) => setVentaForm({ ...ventaForm, precioVentaManual: e.target.value })}
                         required
                       />
                     </div>
@@ -266,7 +314,11 @@ function ModuloVentas({ ventas, proyectos }) {
                   {ventaForm.proyectoSeleccionado && (() => {
                     const sel = proyectos.find(p => p.firestoreId === ventaForm.proyectoSeleccionado);
                     if (!sel) return null;
-                    const totalVenta = (sel.precioVenta || 0) * (parseInt(ventaForm.cantidad) || 1);
+                    const precioUnitarioPreview =
+                      Number(ventaForm.precioVentaManual) > 0
+                        ? Number(ventaForm.precioVentaManual)
+                        : redondearPrecioCliente(sel.precioVenta);
+                    const totalVenta = precioUnitarioPreview * (parseInt(ventaForm.cantidad, 10) || 1);
                     return (
                       <div className="p-2 rounded mt-2" style={{ backgroundColor: '#0b0e14', border: '1px solid #2a2f3a', fontSize: '0.75rem' }}>
                         <div className="d-flex justify-content-between mb-1">
@@ -287,7 +339,7 @@ function ModuloVentas({ ventas, proyectos }) {
                 </div>
 
                 <div className="modal-footer" style={{ borderTop: '1px solid #2a2f3a', backgroundColor: '#0b0e14' }}>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setModalAbierto(false)}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={cerrarModal}>
                     Cancelar
                   </button>
                   <button

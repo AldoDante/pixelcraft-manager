@@ -1,12 +1,19 @@
 import React, { useContext, useState } from 'react';
 import { CartContext } from '../context/CartContext';
+import { obtenerPrecioPublico } from '../utils/catalogoPublico';
 
 function CarritoFlotante() {
   const { carrito, eliminarDelCarrito, vaciarCarrito, totalCarrito, cantidadTotal } = useContext(CartContext);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Formateador de moneda
-  const formatoMoneda = (valor) => (valor || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+  // Formateador de moneda sin centavos (precios redondeados a centena)
+  const formatoMoneda = (valor) =>
+    (valor || 0).toLocaleString('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
 
   // Función para armar el mensaje y enviarlo por WhatsApp
   const enviarPedidoWhatsApp = () => {
@@ -17,7 +24,7 @@ function CarritoFlotante() {
     carrito.forEach((item) => {
       mensaje += `🔹 ${item.cantidad}x *${item.nombre}*\n`;
       if (item.material) mensaje += `   ↳ Material: ${item.material}\n`;
-      mensaje += `   ↳ Precio un.: ${formatoMoneda(item.precioOriginal)}\n\n`;
+      mensaje += `   ↳ Precio un.: ${formatoMoneda(obtenerPrecioPublico(item))}\n\n`;
     });
 
     mensaje += `*TOTAL ESTIMADO: ${formatoMoneda(totalCarrito)}*\n\n`;
@@ -87,7 +94,7 @@ function CarritoFlotante() {
                     <div className="card-body p-2 position-relative">
                       <h6 className="fw-bold mb-1" style={{ fontSize: '0.9rem', paddingRight: '25px' }}>{item.cantidad}x {item.nombre}</h6>
                       <p className="mb-0 text-muted small">{item.material}</p>
-                      <p className="mb-0 fw-bold" style={{ color: '#00d4ff' }}>{formatoMoneda(item.precioOriginal * item.cantidad)}</p>
+                      <p className="mb-0 fw-bold" style={{ color: '#00d4ff' }}>{formatoMoneda(obtenerPrecioPublico(item) * item.cantidad)}</p>
                       
                       {/* Botón borrar item */}
                       <button 

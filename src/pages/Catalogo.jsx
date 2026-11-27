@@ -1,30 +1,39 @@
-import React, { useState, useEffect, useContext } from 'react'; // <-- Agregamos useContext
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../firebase'; 
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { CartContext } from '../context/CartContext'; // <-- Importamos nuestro Contexto
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { CartContext } from '../context/CartContext';
+import { obtenerPrecioPublico } from '../utils/catalogoPublico';
 
 function Catalogo() {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  // Extraemos la función para agregar al carrito desde el contexto
   const { agregarAlCarrito } = useContext(CartContext);
 
-  useEffect(() => {
-    const q = query(
-      collection(db, "calculos"), 
-      where("publicarCatalogo", "==", true)
-    );
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const docs = [];
-      querySnapshot.forEach((doc) => {
-        docs.push({ id: doc.id, ...doc.data() });
-      });
-      setProductos(docs);
-      setCargando(false);
+  const formatoARS = (valor) =>
+    Number(valor || 0).toLocaleString('es-AR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     });
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "catalogo_publico"),
+      (querySnapshot) => {
+        const docs = [];
+        querySnapshot.forEach((docSnap) => {
+          docs.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        docs.sort((a, b) => (b.actualizadoEn || 0) - (a.actualizadoEn || 0));
+        setProductos(docs);
+        setCargando(false);
+      },
+      (error) => {
+        console.error("Error cargando catálogo público:", error);
+        setCargando(false);
+      }
+    );
 
     return () => unsubscribe();
   }, []);
@@ -87,7 +96,7 @@ function Catalogo() {
                       )}
                     </div>
                     <div className="product-info">
-                      <span className="product-category">Impresión 3D</span>
+                      <span className="product-category">{producto.categoria || 'Impresión 3D'}</span>
                       <h3 className="product-title">{producto.nombre}</h3>
                       
                       {producto.descripcion && (
@@ -97,13 +106,15 @@ function Catalogo() {
                       )}
 
                       <span className="product-price">
-                        $ {producto.precioOriginal ? Number(producto.precioOriginal).toFixed(2) : 'Consultar'}
+                        {obtenerPrecioPublico(producto) > 0
+                          ? `$ ${formatoARS(obtenerPrecioPublico(producto))}`
+                          : 'Consultar'}
                       </span>
                       
                       <div className="meta-data">
                         <span>Mat: {producto.material || 'Consultar'}</span>
                         <span>
-                          Tiempo: {producto.tiempoEspera ? producto.tiempoEspera : (producto.horas ? `${producto.horas} hs` : 'A convenir')}
+                          Tiempo: {producto.tiempoEspera || 'A convenir'}
                         </span>
                       </div>
                       
