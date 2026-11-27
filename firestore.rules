@@ -26,6 +26,10 @@ service cloud.firestore {
       allow read, write: if esSocio();
     }
 
+    match /gastos/{gastoId} {
+      allow read, write: if esSocio();
+    }
+
     match /configuracion/{configId} {
       allow read, write: if esSocio();
     }

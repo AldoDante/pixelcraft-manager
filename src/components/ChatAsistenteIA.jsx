@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { auth } from '../firebase';
 import { PERFILES_IMPRESORAS, calcularPresupuestoFinal, redondearPrecioCliente } from '../utils/calculos';
+import { calcularResumenContable } from '../utils/contabilidad';
 import { exportarPresupuestoPdf, soportaCompartirPdf } from '../utils/pdfPresupuesto';
 
 const formatoARS = (valor) => {
@@ -27,7 +28,7 @@ function obtenerResultadoEnVivo({ form, ultimoResultado, config }) {
   return ultimoResultado || null;
 }
 
-function construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas, nombreEmisor }) {
+function construirContextoCalculadora({ form, ultimoResultado, config, proyectos, ventas, gastos, nombreEmisor }) {
   const impresora = PERFILES_IMPRESORAS[form?.impresoraId];
   const horas = parseInt(form?.tiempoHoras, 10) || 0;
   const minutos = parseInt(form?.tiempoMinutos, 10) || 0;
@@ -75,9 +76,10 @@ function construirContextoCalculadora({ form, ultimoResultado, config, proyectos
     lineas.push('', '(Todavía no se presionó el botón Calcular para este formulario.)');
   }
 
+  const resumenContable = calcularResumenContable({ ventas, gastos, periodo: 'todos' });
   lineas.push(
     '',
-    `Resumen histórico del panel: ${proyectos?.length || 0} proyectos guardados, ${ventas?.length || 0} ventas registradas.`
+    `Resumen histórico del panel: ${proyectos?.length || 0} proyectos guardados, ${ventas?.length || 0} ventas registradas (${formatoARS(resumenContable.totalFacturado)}), ${gastos?.length || 0} gastos del taller (${formatoARS(resumenContable.totalGastos)}), saldo real en Caja PixelCraft: ${formatoARS(resumenContable.saldoCajaHistorico)}.`
   );
 
   return lineas.join('\n');
@@ -91,6 +93,7 @@ function ChatAsistenteIA({
   config,
   proyectos,
   ventas,
+  gastos = [],
   aiWebUrl,
   nombreEmisor,
 }) {
@@ -130,7 +133,7 @@ function ChatAsistenteIA({
 
       const idToken = await currentUser.getIdToken();
       const calculatorContext = incluirContexto
-        ? construirContextoCalculadora({ form, ultimoResultado: resultadoEnVivo, config, proyectos, ventas, nombreEmisor })
+        ? construirContextoCalculadora({ form, ultimoResultado: resultadoEnVivo, config, proyectos, ventas, gastos, nombreEmisor })
         : null;
 
       const res = await fetch('/api/chat', {

@@ -100,6 +100,7 @@ function AdminPanel() {
 
   const [proyectos, setProyectos] = useState([]);
   const [ventas, setVentas] = useState([]);
+  const [gastos, setGastos] = useState([]);
   const [ultimoResultado, setUltimoResultado] = useState(null);
   const [editandoId, setEditandoId] = useState(null);
   const [calculoFinalizado, setCalculoFinalizado] = useState(false);
@@ -149,7 +150,18 @@ function AdminPanel() {
       setVentas(snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() })));
     });
 
-    return () => { unsubProyectos(); unsubVentas(); unsubConfig(); };
+    const qGastos = query(collection(db, "gastos"), orderBy("id", "desc"));
+    const unsubGastos = onSnapshot(
+      qGastos,
+      (snapshot) => {
+        setGastos(snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() })));
+      },
+      (error) => {
+        console.error("Error escuchando colección gastos:", error);
+      }
+    );
+
+    return () => { unsubProyectos(); unsubVentas(); unsubGastos(); unsubConfig(); };
   }, [isLogged]);
 
   // Migración automática única: sincroniza hacia `catalogo_publico` cualquier proyecto ya publicado
@@ -548,10 +560,10 @@ function AdminPanel() {
             }}
             onClick={() => setTabActiva('ventas')}
           >
-            📊 VENTAS Y REPARTO DE SOCIOS
-            {ventas.length > 0 && (
+            📊 VENTAS Y CONTABILIDAD
+            {(ventas.length + gastos.length) > 0 && (
               <span className="badge bg-danger rounded-pill ms-2" style={{ fontSize: '0.7rem' }}>
-                {ventas.length}
+                {ventas.length + gastos.length}
               </span>
             )}
           </button>
@@ -612,7 +624,9 @@ function AdminPanel() {
           <ModuloVentas
             key={ventaInicial ? ventaInicial.nonce : 'ventas-default'}
             ventas={ventas}
+            gastos={gastos}
             proyectos={proyectos}
+            nombreEmisor={nombreEmisor}
             proyectoInicial={ventaInicial?.proyecto || null}
             onCerrarModalInicial={() => setVentaInicial(null)}
           />
@@ -627,6 +641,7 @@ function AdminPanel() {
         config={config}
         proyectos={proyectos}
         ventas={ventas}
+        gastos={gastos}
         aiWebUrl={AI_ASSISTANT_URL}
         nombreEmisor={nombreEmisor}
       />
