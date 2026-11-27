@@ -52,6 +52,30 @@ function CalculadoraForm({
         <div className="card-body p-3">
           <form onSubmit={handleCalcular} noValidate>
 
+            {form.tipoProyecto === 'carteleria_led' && form.datosCarteleria && (
+              <div
+                className="mb-3 p-2 rounded small"
+                style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                  color: '#a7f3d0',
+                }}
+              >
+                <div className="fw-bold d-flex justify-content-between align-items-center mb-1">
+                  <span>💡 Proyecto vinculado a PixelCraft LED Studio</span>
+                  {form.datosCarteleria.structureCode && (
+                    <span className="badge bg-success">{form.datosCarteleria.structureCode}</span>
+                  )}
+                </div>
+                <div className="d-flex flex-wrap gap-2" style={{ fontSize: '0.76rem' }}>
+                  <span>Acrílico: <strong>{(form.datosCarteleria.commercialAreaM2 || 0).toFixed(3)} m²</strong></span>
+                  <span>· LED: <strong>{(form.datosCarteleria.ledToPurchaseMeters || 0).toFixed(1)} m</strong></span>
+                  <span>· Fuente 12V: <strong>{form.datosCarteleria.recommendedPowerWatts || 0}W ({form.datosCarteleria.recommendedPowerAmps12V || 0}A)</strong></span>
+                  <span>· Cable: <strong>{form.datosCarteleria.recommendedCableMeters || 0} m</strong></span>
+                </div>
+              </div>
+            )}
+
             {/* 0. DATOS DEL CLIENTE Y MEDIOS DE PAGO (PRIMERO, ANTES DE IMPRESORA) */}
             <div className="mb-3 p-2 rounded" style={{ backgroundColor: '#0b0e14', border: '1px solid #2a2f3a' }}>
               <label className="small fw-bold text-info mb-2 d-block">

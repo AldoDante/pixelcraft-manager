@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { calcularPresupuestoFinal } from '../utils/calculos';
 import { construirItemCatalogoPublico } from '../utils/catalogoPublico';
+import { mapearCarteleriaAFormulario } from '../utils/carteleriaBridge';
 import ListaProyectos from '../components/ListaProyectos';
 import ModuloVentas from '../components/ModuloVentas';
 import AjustesGlobales from '../components/AjustesGlobales';
@@ -52,6 +53,41 @@ function AdminPanel() {
     return () => unsubscribe();
   }, []);
 
+  // Puente en tiempo real desde el iframe de PixelCraft LED Studio (/studio/) -> CalculadoraForm
+  useEffect(() => {
+    if (!isLogged) return;
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== 'PIXELCRAFT_STUDIO_TO_MANAGER') return;
+
+      const campos = mapearCarteleriaAFormulario({
+        nombreProyecto: data.nombreProyecto,
+        structureCode: data.structureCode,
+        metrics: data.metrics,
+        precios: data.precios || {},
+      });
+      if (!campos) return;
+
+      setEditandoId(null);
+      setCalculoFinalizado(false);
+      setUltimoResultado(null);
+      setForm((prev) => ({
+        ...prev,
+        ...campos,
+        insumosExternos: campos.insumosExternos !== '' ? campos.insumosExternos : prev.insumosExternos,
+      }));
+      setTabActiva('calculadora');
+      setAvisoStudio(
+        `✅ Datos importados desde PixelCraft LED Studio: ${campos.nombreProyecto} (${campos.pesoTotal} g · ${campos.tiempoHoras}h ${campos.tiempoMinutos}m)`
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => setAvisoStudio(''), 7000);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [isLogged]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -85,11 +121,34 @@ function AdminPanel() {
     sessionStorage.removeItem('pixelcraft_admin_logged');
   };
 
-  // === CONTROL DE PESTAÑAS (TABS), VENTA RÁPIDA Y CHAT IA ===
+  // === CONTROL DE PESTAÑAS (TABS), VENTA RÁPIDA, STUDIO 3D, MENÚ USUARIO Y CHAT IA ===
   const [tabActiva, setTabActiva] = useState('calculadora');
+  const [studioCargado, setStudioCargado] = useState(false);
+  const [avisoStudio, setAvisoStudio] = useState('');
   const [ventaInicial, setVentaInicial] = useState(null);
   const [chatAbierto, setChatAbierto] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
   const catalogoMigradoRef = useRef(false);
+
+  // Cerrar menú de usuario al hacer clic afuera o presionar Escape
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [userMenuOpen]);
 
   // === ESTADOS DE CONFIGURACIÓN GLOBAL ===
   const [config, setConfig] = useState({
@@ -502,135 +561,278 @@ function AdminPanel() {
     );
   }
 
+  const inicialUsuario = (nombreEmisor || user?.email || 'U').trim().charAt(0).toUpperCase();
+
   return (
     <div className="d-flex flex-column min-vh-100" style={{ backgroundColor: '#0b0e14' }}>
-      <nav className="navbar-public">
-        <div className="brand">
+      <nav className="navbar-public navbar-admin">
+        <div
+          className="brand"
+          style={{ cursor: 'pointer' }}
+          onClick={() => setTabActiva('calculadora')}
+          title="Ir a Calculadora y Proyectos"
+        >
           <div className="pixel-logo">P</div>
           <div className="brand-text"><span>PIXEL</span><span>CRAFT</span></div>
         </div>
-        <div className="nav-links d-none d-md-flex align-items-center gap-3">
-          <Link to="/" className="nav-link text-decoration-none">Ver Catálogo Público</Link>
-          {user?.email && (
-            <span className="small text-secondary" style={{ fontSize: '0.8rem' }}>
-              {user.email}
-            </span>
-          )}
-        </div>
-        <button onClick={handleLogout} className="btn-login" style={{ borderColor: '#ff4444', color: '#ff4444' }}>
-          CERRAR SESIÓN
-        </button>
-      </nav>
 
-      <div className="container-fluid py-4 flex-grow-1">
-        <h1 
-          className="text-center fw-bold mb-3" 
-          style={{ color: '#00d4ff', textShadow: '0 0 12px rgba(0,212,255,0.4)', fontFamily: "'Orbitron', sans-serif", letterSpacing: '2px', fontSize: '1.45rem' }}
-        >
-          PIXELCRAFT 3D CLOUD
-        </h1>
-
-        {/* SELECTOR DE PESTAÑAS */}
-        <div className="d-flex justify-content-center gap-3 mb-4 flex-wrap">
+        {/* NAVEGACIÓN PRINCIPAL EN BARRA SUPERIOR */}
+        <div className="admin-nav-tabs" role="navigation" aria-label="Navegación principal">
           <button
             type="button"
-            className="btn fw-bold px-4 py-2"
-            style={{
-              backgroundColor: tabActiva === 'calculadora' ? '#00d4ff' : '#151921',
-              color: tabActiva === 'calculadora' ? '#0b0e14' : '#fff',
-              border: '1px solid #00d4ff',
-              fontSize: '0.85rem',
-              letterSpacing: '0.5px',
-              boxShadow: tabActiva === 'calculadora' ? '0 0 10px rgba(0,212,255,0.4)' : 'none'
-            }}
+            className={`admin-nav-btn ${tabActiva === 'calculadora' ? 'active-cyan' : ''}`}
             onClick={() => setTabActiva('calculadora')}
+            title="PixelCraft Cost Lab — Calculadora de Costos y Presupuestos 3D"
           >
-            🖨️ CALCULADORA Y PROYECTOS
+            <span>🧮</span>
+            <span>Cost Lab</span>
           </button>
+
           <button
             type="button"
-            className="btn fw-bold px-4 py-2 position-relative"
-            style={{
-              backgroundColor: tabActiva === 'ventas' ? '#00d4ff' : '#151921',
-              color: tabActiva === 'ventas' ? '#0b0e14' : '#fff',
-              border: '1px solid #00d4ff',
-              fontSize: '0.85rem',
-              letterSpacing: '0.5px',
-              boxShadow: tabActiva === 'ventas' ? '0 0 10px rgba(0,212,255,0.4)' : 'none'
-            }}
+            className={`admin-nav-btn finance-tab ${tabActiva === 'ventas' ? 'active-amber' : ''}`}
             onClick={() => setTabActiva('ventas')}
+            title="PixelCraft Finance — Ventas, Gastos y Balance del Taller"
           >
-            📊 VENTAS Y CONTABILIDAD
+            <span>📊</span>
+            <span>Finance</span>
             {(ventas.length + gastos.length) > 0 && (
-              <span className="badge bg-danger rounded-pill ms-2" style={{ fontSize: '0.7rem' }}>
+              <span className="badge bg-danger rounded-pill" style={{ fontSize: '0.68rem' }}>
                 {ventas.length + gastos.length}
               </span>
             )}
           </button>
+
           <button
             type="button"
-            className="btn fw-bold px-4 py-2"
-            style={{
-              backgroundColor: chatAbierto ? '#a855f7' : '#151921',
-              color: chatAbierto ? '#fff' : '#c084fc',
-              border: '1px solid #a855f7',
-              fontSize: '0.85rem',
-              letterSpacing: '0.5px',
-              boxShadow: '0 0 10px rgba(168,85,247,0.3)'
+            className={`admin-nav-btn studio-tab ${tabActiva === 'studio' ? 'active-green' : ''}`}
+            onClick={() => {
+              setStudioCargado(true);
+              setTabActiva('studio');
             }}
+            title="PixelCraft LED Studio — Generador 3D de Carteles Corpóreos LED"
+          >
+            <span>💡</span>
+            <span>LED Studio</span>
+          </button>
+
+          <button
+            type="button"
+            className={`admin-nav-btn ai-tab ${chatAbierto ? 'active-purple' : ''}`}
             onClick={() => setChatAbierto((prev) => !prev)}
           >
-            🤖 ASISTENTE IA
+            <span>🤖</span>
+            <span>Asistente IA</span>
           </button>
+
+          <Link to="/" className="admin-nav-btn text-decoration-none">
+            <span>🛒</span>
+            <span>Ver Catálogo</span>
+          </Link>
         </div>
 
-        {tabActiva === 'calculadora' ? (
-          <div className="row g-3">
-            {/* 1. MÓDULO DE AJUSTES GLOBALES (NUBE) */}
-            <div className="col-lg-3 col-md-4">
-              <AjustesGlobales 
-                config={config} 
-                setConfig={setConfig} 
-                guardarAjustesGlobales={guardarAjustesGlobales} 
-              />
-            </div>
+        {/* MENÚ DE USUARIO DESPLEGABLE A LA DERECHA (LISTO PARA FUTURO PERFIL) */}
+        <div className="admin-user-menu" ref={userMenuRef}>
+          <button
+            type="button"
+            className={`admin-user-trigger ${userMenuOpen ? 'open' : ''}`}
+            aria-expanded={userMenuOpen}
+            aria-haspopup="menu"
+            onClick={() => setUserMenuOpen((prev) => !prev)}
+          >
+            <span className="admin-user-avatar">{inicialUsuario}</span>
+            <span className="admin-user-trigger-text">{user?.email || nombreEmisor}</span>
+            <span className="admin-user-caret">{userMenuOpen ? '▴' : '▾'}</span>
+          </button>
 
-            {/* 2. FORMULARIO DE COTIZACIÓN */}
-            <div className="col-lg-5 col-md-8">
-              <CalculadoraForm 
-                form={form}
-                setForm={setForm}
-                handleCalcular={handleCalcular}
-                editandoId={editandoId}
-                calculoFinalizado={calculoFinalizado}
-                iniciarNuevoCalculo={iniciarNuevoCalculo}
-                cancelarEdicion={cancelarEdicion}
-                ultimoResultado={ultimoResultado}
-              />
-            </div>
+          {userMenuOpen && (
+            <div className="admin-user-dropdown" role="menu">
+              <div className="admin-user-header">
+                <div className="admin-user-name">{nombreEmisor}</div>
+                {user?.email && <div className="admin-user-email">{user.email}</div>}
+              </div>
 
-            {/* 3. HISTORIAL DE TRABAJOS */}
-            <div className="col-lg-4 col-md-12">
-              <ListaProyectos 
-                proyectos={proyectos} 
-                eliminarProyecto={eliminarProyecto} 
-                limpiarTodo={limpiarTodo} 
-                cargarParaEditar={cargarParaEditar}
-                irAVentas={abrirVentaParaProyecto}
-              />
+              <div className="admin-user-divider" />
+
+              <button
+                type="button"
+                role="menuitem"
+                className="admin-user-logout-btn"
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  handleLogout();
+                }}
+              >
+                <span>🚪</span>
+                <span>Cerrar sesión</span>
+              </button>
             </div>
+          )}
+        </div>
+      </nav>
+
+      <div className="container-fluid flex-grow-1 py-2 px-2">
+        {avisoStudio && (
+          <div
+            className="alert alert-success py-2 px-3 small fw-bold d-flex align-items-center justify-content-between mb-2"
+            role="alert"
+            style={{ backgroundColor: 'rgba(16, 185, 129, 0.16)', borderColor: '#10b981', color: '#6ee7b7' }}
+          >
+            <span>{avisoStudio}</span>
+            <button
+              type="button"
+              className="btn-close btn-close-white btn-sm"
+              aria-label="Cerrar"
+              onClick={() => setAvisoStudio('')}
+            />
           </div>
-        ) : (
-          <ModuloVentas
-            key={ventaInicial ? ventaInicial.nonce : 'ventas-default'}
-            ventas={ventas}
-            gastos={gastos}
-            proyectos={proyectos}
-            nombreEmisor={nombreEmisor}
-            proyectoInicial={ventaInicial?.proyecto || null}
-            onCerrarModalInicial={() => setVentaInicial(null)}
-          />
         )}
+
+        {/* Mantiene vivo el iframe de Studio al cambiar entre Studio y Calculadora para no perder el diseño 3D */}
+        {studioCargado && (
+          <div
+            style={{
+              display: tabActiva === 'studio' ? 'block' : 'none',
+              width: '100%',
+              height: 'calc(100vh - 82px)',
+              minHeight: '640px',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              border: '1px solid rgba(56, 189, 248, 0.4)',
+              boxShadow: '0 14px 40px rgba(0, 0, 0, 0.55)',
+              backgroundColor: '#060c17',
+            }}
+          >
+            <iframe
+              title="PixelCraft LED Studio 3D"
+              src="/studio/index.html?embedded=1"
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+            />
+          </div>
+        )}
+
+        {tabActiva === 'calculadora' ? (
+          <section className="pc-module-shell" aria-label="PixelCraft Cost Lab">
+            <header className="pc-module-topbar">
+              <div className="pc-module-brand">
+                <div className="pc-module-icon costlab" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="2" width="16" height="20" rx="2" />
+                    <line x1="8" y1="6" x2="16" y2="6" />
+                    <line x1="8" y1="11" x2="8.01" y2="11" />
+                    <line x1="12" y1="11" x2="12.01" y2="11" />
+                    <line x1="16" y1="11" x2="16.01" y2="11" />
+                    <line x1="8" y1="15" x2="8.01" y2="15" />
+                    <line x1="12" y1="15" x2="12.01" y2="15" />
+                    <line x1="16" y1="15" x2="16.01" y2="15" />
+                    <line x1="8" y1="19" x2="12" y2="19" />
+                    <line x1="16" y1="19" x2="16.01" y2="19" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="pc-module-title-row">
+                    <span className="pc-module-title-base">PixelCraft</span>
+                    <span className="pc-module-title-accent costlab">Cost Lab</span>
+                    <span className="pc-module-version">v1.0</span>
+                  </div>
+                  <div className="pc-module-subtitle">Calculadora de Costos y Presupuestos 3D</div>
+                </div>
+              </div>
+
+              <div className="pc-module-status-group">
+                <span className="pc-module-pill">
+                  📦 {proyectos.length} {proyectos.length === 1 ? 'proyecto' : 'proyectos'}
+                </span>
+                <span className="pc-module-pill cloud">
+                  <span className="pc-module-pill-dot" />
+                  Firebase Cloud · Sincronizado
+                </span>
+              </div>
+            </header>
+
+            <div className="pc-module-body">
+              <div className="row g-3">
+                {/* 1. MÓDULO DE AJUSTES GLOBALES (NUBE) */}
+                <div className="col-lg-3 col-md-4">
+                  <AjustesGlobales 
+                    config={config} 
+                    setConfig={setConfig} 
+                    guardarAjustesGlobales={guardarAjustesGlobales} 
+                  />
+                </div>
+
+                {/* 2. FORMULARIO DE COTIZACIÓN */}
+                <div className="col-lg-5 col-md-8">
+                  <CalculadoraForm 
+                    form={form}
+                    setForm={setForm}
+                    handleCalcular={handleCalcular}
+                    editandoId={editandoId}
+                    calculoFinalizado={calculoFinalizado}
+                    iniciarNuevoCalculo={iniciarNuevoCalculo}
+                    cancelarEdicion={cancelarEdicion}
+                    ultimoResultado={ultimoResultado}
+                  />
+                </div>
+
+                {/* 3. HISTORIAL DE TRABAJOS */}
+                <div className="col-lg-4 col-md-12">
+                  <ListaProyectos 
+                    proyectos={proyectos} 
+                    eliminarProyecto={eliminarProyecto} 
+                    limpiarTodo={limpiarTodo} 
+                    cargarParaEditar={cargarParaEditar}
+                    irAVentas={abrirVentaParaProyecto}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : tabActiva === 'ventas' ? (
+          <section className="pc-module-shell finance-theme" aria-label="PixelCraft Finance">
+            <header className="pc-module-topbar">
+              <div className="pc-module-brand">
+                <div className="pc-module-icon finance" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3v18h18" />
+                    <path d="M7 15l4-4 3 3 6-7" />
+                    <path d="M16 7h4v4" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="pc-module-title-row">
+                    <span className="pc-module-title-base">PixelCraft</span>
+                    <span className="pc-module-title-accent finance">Finance</span>
+                    <span className="pc-module-version">v1.0</span>
+                  </div>
+                  <div className="pc-module-subtitle">Ventas, Gastos y Balance del Taller</div>
+                </div>
+              </div>
+
+              <div className="pc-module-status-group">
+                <span className="pc-module-pill">
+                  🧾 {ventas.length} {ventas.length === 1 ? 'venta' : 'ventas'} · {gastos.length} {gastos.length === 1 ? 'gasto' : 'gastos'}
+                </span>
+                <span className="pc-module-pill cloud">
+                  <span className="pc-module-pill-dot" />
+                  Firebase Cloud · Sincronizado
+                </span>
+              </div>
+            </header>
+
+            <div className="pc-module-body">
+              <ModuloVentas
+                key={ventaInicial ? ventaInicial.nonce : 'ventas-default'}
+                ventas={ventas}
+                gastos={gastos}
+                proyectos={proyectos}
+                nombreEmisor={nombreEmisor}
+                proyectoInicial={ventaInicial?.proyecto || null}
+                onCerrarModalInicial={() => setVentaInicial(null)}
+              />
+            </div>
+          </section>
+        ) : null}
       </div>
 
       <ChatAsistenteIA
