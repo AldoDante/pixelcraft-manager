@@ -706,6 +706,7 @@ function AdminPanel() {
             <iframe
               title="PixelCraft LED Studio 3D"
               src="/studio/index.html?embedded=1"
+              allow="local-fonts"
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             />
           </div>
